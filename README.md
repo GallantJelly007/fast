@@ -1,4 +1,3 @@
-# fast
 <h1 align="center">FastFramework</h1>
 <br><br>
 <p>Фреймворк для создания приложений на Node.js с использованием паттерна MV*</p>
