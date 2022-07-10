@@ -703,8 +703,7 @@
                              obj[name]=value;
                              break;
                          }
-                     }
-                     
+                     } 
                  }
              }
              return obj;
@@ -1268,7 +1267,6 @@
                  userRole:user.userRole,
              }
          };
-         console.log(user);
          token = this.encode(data,user.userKey);
          if(token==false) throw new Error('В объекте user отсутствует ключ для генерации access_token');
          if(refresh){
