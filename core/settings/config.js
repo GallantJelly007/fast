@@ -17,7 +17,7 @@ config.REQUIRE_SRV='http';
 config.COOKIE_PASS='*********';
 config.COOKIE_SECURE=false;
 config.COOKIE_SIGN=false;
-config.DOMAIN_NAME='example';
+config.DOMAIN_NAME='localhost:3002';
 config.PROTOCOL_SOCKET='ws://';
 config.ROOT='';
 config.PROTOCOL=config.REQUIRE_SRV+'://';
@@ -28,7 +28,7 @@ config.LTRT=30;
 config.LOCALE='ru';
 config.SESSION_CLEAN_TIME=24;
 config.ID_LENGTH=24;
-config.ALLOWED_FORMATS=new Map([
+config.ALLOWED_STATIC_FORMATS=new Map([
     ['.png','image/png'],
     ['.svg','image/svg+xml'],
     ['.jpg','image/jpeg'],
@@ -39,5 +39,15 @@ config.ALLOWED_FORMATS=new Map([
     ['.otf','font/otf'],
     ['.ttf','font/ttf'],
 ]);
+
+config.ALLOWED_UPLOAD_FORMATS=new Map([
+    ['.png','image/png'],
+    ['.svg','image/svg+xml'],
+    ['.jpg','image/jpeg'],
+    ['.jpeg','image/jpeg'],
+]);
+
+config.MAX_FILE_SIZE=10; //MB
+config.MIN_FILE_SIZE=0; //MB
 
 module.exports=config;

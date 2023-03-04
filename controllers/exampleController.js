@@ -10,8 +10,8 @@ module.exports = class ExampleController extends Controller{
     }
 
     //Все функции контроллера ассинхронные и начинаются со слова action, Должны возвращать результат true- при успешном выполнении и false при неуспешном? А перед эти отправлять рендер или результат пользователю
-    async actionExampleView(app){
-        app.view(app.config.ROOT+'/views/example.twig');
+    async view(app){
+        app.view(app.config.ROOT+'/views/example.html');
         return true;
     }
 }
