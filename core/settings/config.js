@@ -32,7 +32,7 @@ config.LOCALE_PATH = ''
 config.LOCALE='ru'
 config.SESSION_CLEAN_TIME=24
 config.ID_LENGTH=24
-config.STATIC_PATHS = []
+config.STATIC_PATHS = ['public']
 config.ALLOWED_STATIC_FORMATS=new Map([
     ['.png','image/png'],
     ['.svg','image/svg+xml'],
