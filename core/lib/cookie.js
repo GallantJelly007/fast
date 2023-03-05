@@ -1,4 +1,8 @@
-export default class Cookie {
+//@ts-check
+
+const crypto = require('crypto')
+
+module.exports = class Cookie {
     static #request;
     static #response;
     static #cookieData = new Map();

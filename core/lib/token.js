@@ -1,6 +1,21 @@
-const crypto = require('crypto');
+//@ts-check
 
-export default class Token {
+/**
+ * @typedef {Object} TokenBody
+ * @property {object} header 
+ * @property {object} body 
+ * @property {string} sign 
+ */
+
+/**
+ * @typedef {Object} Result
+ * @property {number} success 
+ * @property {string} message 
+ */
+
+const crypto = require('crypto')
+
+module.exports = class Token {
 
     LTT;
     LTRT;

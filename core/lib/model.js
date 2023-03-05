@@ -1,11 +1,16 @@
-export default class Model {
+//@ts-check
+
+const {Client} = require('pg');
+const fs = require('fs');
+
+module.exports = class Model {
     static table = null;
     static primary = null;
     #position = 1;
     #lastQuery = '';
     #data = [];
-    #query = null;
-    static #config=null
+    #query = '';
+    static #config;
 
     static async init(config, options){
         let params = ['DB_USER','DB_HOST','DB_NAME','DB_PASS','DB_PORT']
@@ -88,12 +93,12 @@ export default class Model {
         })
     }
 
-    static select(params = null, tb = null) {
+    static select(params = [], tb = null) {
         if (tb == null) {
             tb = this.table;
         }
         let query = 'SELECT ';
-        if (params != null) {
+        if (params.length>0) {
             query += params.toString() + ' FROM ' + tb;
         } else {
             query += '* FROM ' + tb;
@@ -120,11 +125,12 @@ export default class Model {
         return this;
     }
 
-    inSelect(params = null, tb = null) {
+    inSelect(params = [], tb = null) {
         if (tb == null) {
+            // @ts-ignore
             tb = this.constructor.table;
         }
-        if (params != null) {
+        if (params.length>0) {
             this.#query += 'SELECT ' + params.toString() + ' FROM ' + tb;
         } else {
             this.#query += 'SELECT * FROM ' + tb;
@@ -193,9 +199,9 @@ export default class Model {
         return this;
     }
 
-    like(f, param = null) {
+    like(f, param = []) {
         if (this.#lastQuery == 'where') {
-            if (typeof f == 'function' && param == null) {
+            if (typeof f == 'function' && param.length==0) {
                 this.#lastQuery = 'innerWhere';
                 this.#query += ' LIKE ('
                 f(this);
@@ -222,10 +228,13 @@ export default class Model {
         if (typeof f == 'function') {
             this.#lastQuery = 'innerWhere';
             this.#query += ' IN ('
+            // @ts-ignore
             f(this);
             this.#query += ')'
         } else {
+            // @ts-ignore
             f=f==null?'':f.toString();
+            // @ts-ignore
             f = ' IN (' + f + ')';
             this.#query += f;
             this.#lastQuery = 'where';
@@ -260,6 +269,7 @@ export default class Model {
 
     join(tb, fieldCondition, fieldCondition2) {
         this.#lastQuery = ''
+        // @ts-ignore
         let current=this.constructor.table;
         this.#query += ` JOIN ${tb} ON ${current}.${fieldCondition}=${fieldCondition2}`;
         return this;
@@ -274,6 +284,7 @@ export default class Model {
             fieldName = Model.asArray(fieldName);
         }
         if (!Array.isArray(direction)) {
+            // @ts-ignore
             direction=Model.asArray(direction);
         }
         while (fieldName.length > 0) {
@@ -282,6 +293,7 @@ export default class Model {
             if (fieldName.length == 0) {
                 br = '';
             }
+            // @ts-ignore
             this.#query += item + ' ' + direction.shift().toUpperCase() + br;
         }
         return this;
@@ -306,6 +318,7 @@ export default class Model {
         return new Promise((resolve, reject) => {
             let names = [], values = [], data = [];
             this.#position = 1;
+            // @ts-ignore
             let obj = new this.constructor();
             for (let name in obj) {
                 if (this[name] != null) {
@@ -319,6 +332,7 @@ export default class Model {
                     data.push(this[name]);
                 }
             }
+            // @ts-ignore
             let strQuery = `INSERT INTO ${this.constructor.table} (${names.toString()}) VALUES (${values.toString()}) RETURNING ${this.constructor.primary}`;
             let connect = new Connect(Model.#config);
             connect.con().then(connect => {
@@ -328,7 +342,9 @@ export default class Model {
                     if (!result){
                         resolve({success:false});
                     } else {
+                        // @ts-ignore
                         this[this.constructor.primary]=result.rows[0][this.constructor.primary]
+                        // @ts-ignore
                         resolve({success:true, insertId:result.rows[0][this.constructor.primary]})
                     }
                 })
@@ -340,9 +356,11 @@ export default class Model {
         return new Promise((resolve, reject) => {
             this.#position = 1;
             let names = [], values = [], conditions = '';
+            // @ts-ignore
             let obj = new this.constructor();
             for (let item in obj) {
                 let bname = item.replace(/([A-Z])/g, '_$1').toLowerCase();
+                // @ts-ignore
                 if (this.constructor.primary != null && this.constructor.primary == bname) {
                     conditions = ` WHERE ${bname}=$${this.#position}`;
                     values.push(this[item]);
@@ -354,8 +372,10 @@ export default class Model {
                 if (!isNull && this[item] === null) {
                     continue;
                 } else {
+                    // @ts-ignore
                     if (bname != this.constructor.primary && this[item] === null) {
                         names.push(`${bname}=NULL`);
+                    // @ts-ignore
                     } else if(bname != this.constructor.primary){
                         if (this[item]!=null&&this[item].toString().toLowerCase() === 'current_timestamp') {
                             this[item]=new Date();
@@ -367,6 +387,7 @@ export default class Model {
                 }
             }
             let connect = new Connect(Model.#config);
+            // @ts-ignore
             this.#query=`UPDATE ${this.constructor.table} SET ${names.toString() + conditions}`
             try{
                 connect.con().then(connect => {
@@ -444,7 +465,9 @@ export default class Model {
                         }
                         if (/^SELECT/.test(this.#query)) {
                             let objs;
+                            // @ts-ignore
                             if(/JOIN/.test(this.#query)||/AS/.test(this.#query)) objs = this.constructor.parse(result.rows,true);
+                            // @ts-ignore
                             else objs = this.constructor.parse(result.rows);
                             connect.client.end();
                             resolve({success:true,data:objs});
@@ -490,6 +513,7 @@ export default class Model {
     delete(){
         return new Promise((resolve, reject) => {
             let connect = new Connect(Model.#config);
+            // @ts-ignore
             this.#query=`DELETE FROM ${this.constructor.table} WHERE ${this.constructor.primary} = ${this[this.constructor.primary]}`
             try{
                 connect.con().then(connect => {
@@ -497,6 +521,7 @@ export default class Model {
                         this.#position=1;
                         connect.client.end();
                         for(let key in this){
+                            // @ts-ignore
                             this[key]=null
                         }
                         if (!result) resolve({success:false});
@@ -555,8 +580,8 @@ export default class Model {
 }
 
 class Connect {
-    client = null;
-    config = null;
+    client;
+    config;
     constructor(config) {
         this.config=config
         this.client = new Client({

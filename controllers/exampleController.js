@@ -1,4 +1,7 @@
-const {Controller,LocalStorage,Cookie,Session} = require('../core/app')
+const Controller = require('../core/lib/controller');
+const LocalStorage = require('../core/lib/storage');
+const Cookie = require('../core/lib/cookie');
+const Session = require('../core/lib/session');
 
 module.exports = class ExampleController extends Controller{
     //Определяет тип контроллера, для Rest type='rest'

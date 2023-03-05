@@ -1,6 +1,8 @@
-const fs = require('fs');
+//@ts-check
 
-export default class LocalStorage {
+const fs = require('fs')
+
+module.exports = class LocalStorage {
     static ROOT;
     static #storage;
     static setRoot(root) {

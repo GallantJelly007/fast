@@ -1,16 +1,21 @@
-const crypto = require('crypto');
+//@ts-check
 
-export default class Session {
+const crypto = require('crypto')
+const Cookie = require('./cookie')
+const config = require('../settings/config')
+const fs = require('fs')
+
+module.exports = class Session {
     static #sessionStorage = new Map();
     static #sesId;
     static root;
     static isStart = false;
     static idLength;
 
-    static cleanTime = require('./settings/config').SESSION_CLEAN_TIME;
+    static cleanTime = config.SESSION_CLEAN_TIME;
 
     static start(root, sesId = null, setCookie = false) {
-        this.idLength = require('./settings/config').ID_LENGTH;
+        this.idLength = config.ID_LENGTH;
         if (!fs.existsSync(root + "/storage/sessions")) {
             fs.mkdir(root + "/storage/sessions", (err) => {
                 if (err) {

@@ -1,4 +1,4 @@
-module.exports=new Map([
+module.exports = new Map([
     [/^index$/, 'post/get:example/view'],
     [/^main$/, 'post/get:example/view'],
     [/^$/, 'post/get:example/view'],
