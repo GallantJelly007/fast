@@ -7,4 +7,5 @@
 <p>Для начала работы клонировать репозиторий и установить зависимости командой:</p>
 
 <code>git clone https://github.com/GallantJelly007/fast ./</code>
+<br>
 <code>npm install</code>
