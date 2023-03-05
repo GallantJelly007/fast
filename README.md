@@ -6,7 +6,6 @@
 <p>Фреймворк содержит зависимости для работы WebSocket и PgSQL</p>
 <p>Для начала работы клонировать репозиторий и установить зависимости командой:</p>
 
-<code>
-git clone https://github.com/GallantJelly007/fast ./
+<code>git clone https://github.com/GallantJelly007/fast ./
 npm install
 </code>
