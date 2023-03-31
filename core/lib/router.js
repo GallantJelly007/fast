@@ -137,9 +137,9 @@ class Router {
                         response.setHeader('Content-Type', 'text/html; charset=utf-8');
 
                         switch (classController.type) {
-                            case 'base': app = new HttpClient(this.#config, request, response);
+                            case 'base': app = new HttpClient(this.#config, request, response, methods);
                                 break;
-                            case 'rest': app = new HttpClient(this.#config, request, response, false);
+                            case 'rest': app = new HttpClient(this.#config, request, response, methods, false);
                                 break;
                             default: throw new Error('Не указан тип контролеера');
                         }
@@ -378,18 +378,35 @@ class HttpClient extends Middle {
     os = 'Unknown';
     ip = null;
 
-    constructor(config, req, res, useCookie = true) {
+    constructor(config, req, res, methods ,useCookie = true,) {
         super(config);
         this.request = req;
         this.response = res;
         if (useCookie) {
             Cookie.init(this.request, this.response, this.config.COOKIE_PASS);
+            Session.start(config.ROOT, Cookie.get('ses-id'), true);
+            this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+            this.translate = new Translate(this.config);
+            if(this.config.DEV_MODE)
+                this.logger.debug("Create HTTPClient",this);
+        }else{
+            this.getInput(methods).then((input)=>{
+                if(input.hasOwnProperty('sesId')){
+                    Session.start(config.ROOT, input.sesId, true);
+                    this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+                    this.translate = new Translate(this.config);
+                    if(this.config.DEV_MODE)
+                        this.logger.debug("Create HTTPClient without session",this);
+                }else{
+                    this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+                    this.translate = new Translate(this.config);
+                    if(this.config.DEV_MODE)
+                        this.logger.debug("Create HTTPClient without session and cookie",this);
+                }
+            }).catch(()=>{
+                this.logger.debug("Error create HTTPClient without cookie",this);
+            })
         }
-        Session.start(config.ROOT, Cookie.get('ses-id'), true);
-        this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
-        this.translate = new Translate(this.config);
-        if(this.config.DEV_MODE)
-            this.logger.debug("Create HTTPClient",this);
     }
     /**
      * 
@@ -413,6 +430,7 @@ class HttpClient extends Middle {
         this.ip = input.getIp();
         if(this.config.DEV_MODE)
             this.logger.debug("HttpClient.getInput()",this.input);
+        return this.input;
     }
 
     /**
