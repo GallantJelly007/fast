@@ -128,33 +128,35 @@ class App {
     #routes;
     #logger;
     constructor(root, config, routes) {
-        this.#config = config;
-        this.#config.ROOT = root;
-        this.#routes = routes;
-        const server = require(this.#config.REQUIRE_SRV);
-        this.#logger=new Logger(root,"APP");
-        LocalStorage.setRoot(root);
-        LocalStorage.restore();
+        this.#config = config
+        this.#config.ROOT = root
+        this.#routes = routes
+        const server = require(this.#config.REQUIRE_SRV)
+        this.#logger=new Logger(root,"APP")
+        LocalStorage.setRoot(root)
+        LocalStorage.restore()
+        Session.setRoot(root)
+
+        server.timeout = 120
+        server.createServer((request, response) => {
+            let router = new Router(this.#config, this.#routes)
+            router.start(request, response)
+        }).listen(this.#config.PORT)
+     
         process.on('SIGINT', () => {
-            this.#logger.debug('process.exit(1)','Закрытие приложения');
-            Session.clean(__dirname);
-            LocalStorage.clean();
-            process.exit(1);
+            this.#logger.debug('process.exit(1)','Закрытие App')
+            Session.clean()
+            LocalStorage.clean()
+            process.exit(1)
         });
         process.on('SIGQUIT', () => {
-            this.#logger.debug('process.exit(3)','Закрытие приложения');
-            process.exit(3);
+            this.#logger.debug('process.exit(3)','Закрытие App')
+            process.exit(3)
         });
         process.on('SIGTERM', () => {
-            this.#logger.debug('process.exit(15)','Закрытие приложения');
-            process.exit(15);
+            this.#logger.debug('process.exit(15)','Закрытие App')
+            process.exit(15)
         });
-
-        server.createServer((request, response) => {
-            let router = new Router(this.#config, this.#routes);
-            router.start(request, response);
-        }).listen(this.#config.PORT);
-        server.timeout = 120;
     }
 }
 
@@ -171,6 +173,10 @@ class AppSocket {
         this.#config = config;
         this.#config.ROOT = root;
         this.#logger=new Logger(root,'AppSocket');
+        LocalStorage.setRoot(root)
+        LocalStorage.restore()
+        Session.setRoot(root)
+
         ws.on('connection', client => {
             let newClient = new SocketClient(this.#config, client, this.#routes);
             newClient.send({ success: 1, message: "success" });
@@ -183,7 +189,6 @@ class AppSocket {
                     }
                 }
             })
-
             newClient.emitter.on('broadcast', (data) => {
                 for (let i = 0; i < this.clients.length; i++) {
                     if (this.clients[i] == newClient) {
@@ -199,7 +204,23 @@ class AppSocket {
                 }
             })
         });
+
+        process.on('SIGINT', () => {
+            this.#logger.debug('process.exit(1)','Закрытие AppSocket')
+            Session.clean()
+            LocalStorage.clean()
+            process.exit(1)
+        });
+        process.on('SIGQUIT', () => {
+            this.#logger.debug('process.exit(3)','Закрытие AppSocket')
+            process.exit(3)
+        });
+        process.on('SIGTERM', () => {
+            this.#logger.debug('process.exit(15)','Закрытие AppSocket')
+            process.exit(15)
+        });
     }
+
     setOnExit(func) {
         process.on('exit', () => { func(this.clients) });
     }

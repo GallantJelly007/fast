@@ -575,6 +575,5 @@ class JaxRequest{
 if(typeof window ==='undefined'){
     module.exports=jax
 }
-export default jax
 
 

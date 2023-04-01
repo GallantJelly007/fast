@@ -907,4 +907,3 @@ class Time{
 if(typeof window ==='undefined'){
     module.exports=Time
 }
-export default Time

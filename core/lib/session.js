@@ -8,22 +8,23 @@ const fs = require('fs')
 module.exports = class Session {
     static #sessionStorage = new Map();
     static #sesId;
-    static root;
+    static #ROOT;
     static isStart = false;
     static idLength;
 
     static cleanTime = config.SESSION_CLEAN_TIME;
 
-    static start(root, sesId = null, setCookie = false) {
+    static start(root = null, sesId = null, setCookie = false) {
         this.idLength = config.ID_LENGTH;
-        if (!fs.existsSync(root + "/storage/sessions")) {
-            fs.mkdir(root + "/storage/sessions", (err) => {
+        this.#ROOT = root!=null?root:this.#ROOT;
+        if (!fs.existsSync(this.#ROOT + "/storage/sessions")) {
+            fs.mkdir(this.#ROOT + "/storage/sessions", (err) => {
                 if (err) {
                     return false;
                 }
             });
         }
-        this.root = root;
+
         if (sesId != null) {
             this.#sesId = sesId;
             this.restore();
@@ -47,7 +48,7 @@ module.exports = class Session {
                 random.push(Session.hash(4, 'chars-numbers'));
             }
             random = random.join('-');
-        } while (fs.existsSync(this.root + "/storage/sessions/" + random + '.json'));
+        } while (fs.existsSync(this.#ROOT + "/storage/sessions/" + random + '.json'));
         return random;
     }
 
@@ -93,29 +94,29 @@ module.exports = class Session {
     static save() {
         let data = Object.fromEntries(this.#sessionStorage);
         let obj;
-        if (fs.existsSync(this.root + '/storage/sessions/' + this.#sesId + '.json')) {
-            obj = JSON.parse(fs.readFileSync(this.root + '/storage/sessions/' + this.#sesId + '.json', 'utf-8'));
+        if (fs.existsSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json')) {
+            obj = JSON.parse(fs.readFileSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json', 'utf-8'));
             obj.data = data;
             obj.update = Date.now();
         } else {
             obj = { data: data, create: Date.now(), update: Date.now() };
         }
-        fs.writeFileSync(this.root + '/storage/sessions/' + this.#sesId + '.json', JSON.stringify(obj));
+        fs.writeFileSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json', JSON.stringify(obj));
     }
 
     static close() {
-        if (fs.existsSync(this.root + '/storage/sessions/' + this.#sesId + '.json')) {
-            fs.unlinkSync(this.root + '/storage/sessions/' + this.#sesId + '.json');
+        if (fs.existsSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json')) {
+            fs.unlinkSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json');
             this.#sessionStorage = new Map();
             this.#sesId = this.genId();
         }
     }
 
-    static clean(root) {
-        if (fs.existsSync(root + '/storage/sessions')) {
-            let files = fs.readdirSync(root + '/storage/sessions', { withFileTypes: true });
+    static clean() {
+        if (fs.existsSync(this.#ROOT + '/storage/sessions')) {
+            let files = fs.readdirSync(this.#ROOT + '/storage/sessions', { withFileTypes: true });
             for (let file of files) {
-                let path = root + '/storage/sessions/' + file.name;
+                let path = this.#ROOT + '/storage/sessions/' + file.name;
                 let obj = JSON.parse(fs.readFileSync(path, 'utf-8'));
                 if (new Date(Date.now() - obj.update).getHours() > this.cleanTime) {
                     fs.unlinkSync(path);
@@ -125,13 +126,18 @@ module.exports = class Session {
     }
 
     static restore() {
-        if (fs.existsSync(this.root + '/storage/sessions/' + this.#sesId + '.json')) {
-            let obj = JSON.parse(fs.readFileSync(this.root + '/storage/sessions/' + this.#sesId + '.json', 'utf-8'));
+        if (fs.existsSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json')) {
+            let obj = JSON.parse(fs.readFileSync(this.#ROOT + '/storage/sessions/' + this.#sesId + '.json', 'utf-8'));
             this.#sessionStorage = new Map(Object.entries(obj.data));
         } else {
             this.#sessionStorage = new Map();
         }
     }
+
+    static setRoot(root){
+        this.#ROOT=root
+    }
+
 
     /**
     * 
