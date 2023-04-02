@@ -419,8 +419,12 @@ module.exports = class Model {
     /**
      * 
      * @param {boolean} wordSensetive 
+     * 
+     * По умолчанию - true. Если в запросе имеются слова (max,min,count,sum,avg) возвращает вычисленное значение, вместо объекта data, поэтому может использоваться только в простых запросах с использованием всех перечисленных функций
+     * 
      * @returns Возвращает промис, если что то пойдет не так при подключении вернет false. 
-     * @desc
+     * 
+     * ---
      * Возвращает объект вида {success:false|true} и в зависимости от запроса дополнительное поле при успешном выполнении
      * 
      * Доп.поля:
@@ -430,6 +434,8 @@ module.exports = class Model {
      * COUNT - count
      * 
      * MAX - max
+     * 
+     * AVG - avg
      * 
      * MIN - min
      * 
@@ -466,6 +472,11 @@ module.exports = class Model {
                                 connect.client.end();
                                 if(result.rows.length) resolve({success:true,sum:Number(result.rows[0].sum)});
                                 else resolve({success:true, sum:0});
+                            }
+                            if (/^[^(]+AVG[^)]+/.test(this.#query)) {
+                                connect.client.end();
+                                if(result.rows.length) resolve({success:true,sum:Number(result.rows[0].avg)});
+                                else resolve({success:true, avg:0});
                             }
                         }
                         if (/^DELETE/.test(this.#query)) {

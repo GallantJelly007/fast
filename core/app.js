@@ -14,19 +14,13 @@
  */
 
 
-
-
-
-
 const LocalStorage = require('./lib/storage');
 const Session = require('./lib/session');
 const {Router,SocketClient,HttpClient} = require('./lib/router');
 const Logger = require('./lib/logger');
+const Model = require('./lib/model');
 
-
-
-
-
+/** Массив основных MIME-типов */
 const mimeTypes = new Map([
     ['.atom', 'application/atom+xml'],
     ['.edi', 'application/EDI-X12'],
@@ -123,10 +117,26 @@ const mimeTypes = new Map([
     ['.3gpp2', 'video/3gpp2']
 ]);
 
+/**
+ * Класс для создания HTTP сервера
+ */
 class App {
     #config;
     #routes;
     #logger;
+    /**
+     * @param {string} root 
+     * 
+     * Путь к корневой папке проекта
+     *  
+     * @param {object} config 
+     * 
+     * Объект конфигурации
+     * 
+     * @param {Array<Map>} routes 
+     * 
+     * Массив коллекций разрешенных url адресов приложения
+     */
     constructor(root, config, routes) {
         this.#config = config
         this.#config.ROOT = root
@@ -136,8 +146,9 @@ class App {
         LocalStorage.setRoot(root)
         LocalStorage.restore()
         Session.setRoot(root)
-
+        Model.init(config)
         server.timeout = 120
+
         server.createServer((request, response) => {
             let router = new Router(this.#config, this.#routes)
             router.start(request, response)
@@ -160,13 +171,34 @@ class App {
     }
 }
 
-
+/**
+ * Класс для создания WebSocket сервера
+ */
 class AppSocket {
     clients = [];
     #config;
     #routes;
     #logger;
-    constructor(root,config,port, routes) {
+    
+    /**
+     * 
+     * @param {string} root 
+     * 
+     * Путь к корневой папке проекта
+     * 
+     * @param {Object} config 
+     * 
+     * Объект конфигурации
+     * 
+     * @param {number} port 
+     * 
+     * Номер порта для прослушивания
+     * 
+     * @param {Array<Map>} routes 
+     * 
+     * Массив коллекций разрешенных url адресов приложения
+     */
+    constructor(root,config,port,routes) {
         const WebSocket = require('ws');
         const ws = new WebSocket.WebSocketServer({ port: port });
         this.#routes = routes;
@@ -176,6 +208,7 @@ class AppSocket {
         LocalStorage.setRoot(root)
         LocalStorage.restore()
         Session.setRoot(root)
+        Model.init(config)
 
         ws.on('connection', client => {
             let newClient = new SocketClient(this.#config, client, this.#routes);
@@ -221,10 +254,14 @@ class AppSocket {
         });
     }
 
+    /**
+     * Функция для установки действия при закрытии приложения
+     * @param {Function} func 
+     * Колбэк функция которая вызывается при закрытии приложения, в функцию будет передан массив со всеми подключенными клиентами SocketClient
+     */
     setOnExit(func) {
         process.on('exit', () => { func(this.clients) });
     }
 }
-
 
 module.exports = {App,AppSocket}

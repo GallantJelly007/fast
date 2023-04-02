@@ -2,7 +2,7 @@
 const {App} = require('./core/app');
 const config = require('./core/settings/config') ;
 
-const routes={};
+const routes=[];
 //Загрузка роутов из файла
 routes[config.DOMAIN_NAME]=require('./core/settings/routes')
 //Старт нового приложения
