@@ -12,7 +12,22 @@ module.exports = class Model {
     #query = '';
     static #config;
 
-    static async init(config, options){
+    /**
+     * 
+     * @param {object} config 
+     * @param {object} options 
+     * 
+     * Объект опций для миграции и создания моделей БД
+     * 
+     * @param {boolean} options.isCreateModels
+     * 
+     * Переменная указывающая нужно ли создавать файл с моделями
+     * 
+     * @param {string} options.modelCreatePath
+     * 
+     * Путь к папке для создания файла с моделями БД (Например: D://users/models)
+     */
+    static async init(config, options={isCreateModels:false,modelCreatePath:''}){
         let params = ['DB_USER','DB_HOST','DB_NAME','DB_PASS','DB_PORT']
         try{
             Model.#config=config
@@ -28,7 +43,7 @@ module.exports = class Model {
                 let columns = await Model.#getTableInfo()
                 let table=null
                 let classes=[]
-                let script = `const {Model} = require('../core/app')\n`
+                let script = `const Model = require('../core/lib/model')\n`
                 for(let col of columns){
                     if(table==null||col.table_name!=table){
                         script+=table!=null?'\n}\n\n':''
@@ -46,7 +61,7 @@ module.exports = class Model {
                 script+=`\n}\n\nmodule.exports = {${classes.toString().split(',').join(', ')}}`
                 fs.open(`${options.modelCreatePath}/models.js`, 'w', (err) => {
                     if(err) throw err;
-                    fs.writeFile(`${options.modelCreatePath}/models.js`,script,err=>{
+                    fs.writeFile(`${options.modelCreatePath}/extends.js`,script,err=>{
                         if(err) throw err;
                         console.log('Models init success!');
                     })
@@ -276,9 +291,6 @@ module.exports = class Model {
     }
 
     orderBy(fieldName, direction = 'asc') {
-        if (fieldName == null || fieldName == '') {
-            return false;
-        }
         this.#query += ' ORDER BY ';
         if (!Array.isArray(fieldName)) {
             fieldName = Model.asArray(fieldName);

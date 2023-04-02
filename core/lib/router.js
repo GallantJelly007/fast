@@ -365,6 +365,26 @@ class Middle {
             });
         })
     }
+
+    jsonMapReplacer(key, value){
+        if (value instanceof Map) {
+            return {
+                dataType: 'Map',
+                value: Array.from(value.entries()), 
+            };
+        } else {
+            return value;
+        }
+    }
+
+    jsonMapReviewer(key, value) {
+        if(typeof value === 'object' && value !== null) {
+            if (value.dataType === 'Map') {
+                return new Map(value.value);
+            }
+        }
+        return value;
+    }
 }
 
 class HttpClient extends Middle {
@@ -378,7 +398,7 @@ class HttpClient extends Middle {
     os = 'Unknown';
     ip = null;
 
-    constructor(config, req, res, methods ,useCookie = true,) {
+    constructor(config, req, res, methods ,useCookie = true) {
         super(config);
         this.request = req;
         this.response = res;
@@ -454,6 +474,16 @@ class HttpClient extends Middle {
                 }
             }
         })
+    }
+
+    /**
+     * 
+     * @param {Object} data 
+     * @desc Отправляет клиенту данные в JSON формате через HTTP
+     */
+    sendResponse(data) {
+        this.response.write(JSON.stringify(data,this.jsonMapReplacer));
+        this.response.end();
     }
 
 

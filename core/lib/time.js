@@ -335,7 +335,7 @@ class Time{
     * @param {number} tz 
     * Временная зона из массива Time.TIMEZONE
     */
-    constructor(param,tz=null){
+    constructor(param=null,tz=null){
         if(typeof param=='string'){
             this.#reverseISO(param)
         }else{
