@@ -154,7 +154,7 @@ module.exports = class Token {
 
     generateCsrf(data){
         if(!LocalStorage.isSetRoot())
-            LocalStorage.setRoot(this.#ROOT)
+            LocalStorage.init(this.#ROOT)
         let csrfKey = crypto.randomUUID()
         let csrfToken = crypto.createHmac('sha256', String(csrfKey)).update(data.toString())
         LocalStorage.set(csrfToken,{csrfKey:csrfKey,data:data.toString()})
@@ -163,7 +163,7 @@ module.exports = class Token {
 
     verifyCsrf(token,data){
         if(!LocalStorage.isSetRoot())
-            LocalStorage.setRoot(this.#ROOT)
+            LocalStorage.init(this.#ROOT)
         if(LocalStorage.isset(token)){
             let obj = LocalStorage.get(token)
             LocalStorage.unset(token)

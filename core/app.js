@@ -143,8 +143,7 @@ class App {
         this.#routes = routes
         const server = require(this.#config.REQUIRE_SRV)
         this.#logger=new Logger(root,"APP")
-        LocalStorage.setRoot(root)
-        LocalStorage.restore()
+        LocalStorage.init(root)
         Session.setRoot(root)
         Model.init(config)
         server.timeout = 120
@@ -205,7 +204,7 @@ class AppSocket {
         this.#config = config;
         this.#config.ROOT = root;
         this.#logger=new Logger(root,'AppSocket');
-        LocalStorage.setRoot(root)
+        LocalStorage.init(root)
         LocalStorage.restore()
         Session.setRoot(root)
         Model.init(config)
