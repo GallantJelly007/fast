@@ -14,19 +14,20 @@
  */
 
 const crypto = require('crypto')
+const LocalStorage = require('./storage')
 
 module.exports = class Token {
 
-    LTT;
-    LTRT;
-    DOMAIN;
-    CSRF_KEY;
+    #LTT;
+    #LTRT;
+    #DOMAIN;
+    #ROOT;
 
-    constructor(ltt, ltrt, csrf, domain) {
-        this.LTT = ltt;
-        this.LTRT = ltrt;
-        this.DOMAIN = domain;
-        this.CSRF_KEY = csrf;
+    constructor(root, ltt, ltrt, domain) {
+        this.#ROOT = root
+        this.#LTT = ltt;
+        this.#LTRT = ltrt;
+        this.#DOMAIN = domain;
     }
 
     btoa(text) {
@@ -126,9 +127,9 @@ module.exports = class Token {
     generate(user, refresh = false) {
         let token, refreshToken;
         let data = {
-            iss: this.DOMAIN,
+            iss: this.#DOMAIN,
             gen: Date.now(),
-            exp: Date.now() + ((3600 * 1000) * 24 * this.LTT),
+            exp: Date.now() + ((3600 * 1000) * 24 * this.#LTT),
             data: {
                 userId: user.userId,
                 userName: user.userName,
@@ -141,7 +142,7 @@ module.exports = class Token {
         if (token == false) throw new Error('В объекте user отсутствует ключ для генерации access_token');
         if (refresh) {
             let dateAccess = data.exp;
-            data.exp = Date.now() + ((3600 * 1000) * 24 * this.LTRT);
+            data.exp = Date.now() + ((3600 * 1000) * 24 * this.#LTRT);
             let dateRefresh = data.exp;
             refreshToken = this.encode(data, user.userRkey, true);
             if (refreshToken == false) throw new Error('В объекте user отсутствует ключ для генерации refresh_token');
@@ -151,4 +152,27 @@ module.exports = class Token {
         }
     }
 
+    generateCsrf(data){
+        if(!LocalStorage.isSetRoot())
+            LocalStorage.setRoot(this.#ROOT)
+        let csrfKey = crypto.randomUUID()
+        let csrfToken = crypto.createHmac('sha256', String(csrfKey)).update(data.toString())
+        LocalStorage.set(csrfToken,{csrfKey:csrfKey,data:data.toString()})
+        return csrfToken;
+    }
+
+    verifyCsrf(token,data){
+        if(!LocalStorage.isSetRoot())
+            LocalStorage.setRoot(this.#ROOT)
+        if(LocalStorage.isset(token)){
+            let obj = LocalStorage.get(token)
+            LocalStorage.unset(token)
+            if(data.toString()==obj.data)
+                return true
+            else
+                return false
+        }else{
+            return false
+        }
+    }
 }

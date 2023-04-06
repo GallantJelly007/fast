@@ -405,7 +405,7 @@ class HttpClient extends Middle {
         if (useCookie) {
             Cookie.init(this.request, this.response, this.config.COOKIE_PASS);
             Session.start(config.ROOT, Cookie.get('ses-id'), true);
-            this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+            this.token = new Token(this.config.ROOT, this.config.LTT, this.config.LTRT, this.config.DOMAIN);
             this.translate = new Translate(this.config);
             if(this.config.DEV_MODE)
                 this.logger.debug("Create HTTPClient",this);
@@ -413,12 +413,12 @@ class HttpClient extends Middle {
             this.getInput(methods).then((input)=>{
                 if(input.hasOwnProperty('sesId')){
                     Session.start(config.ROOT, input.sesId, true);
-                    this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+                    this.token = new Token(this.config.ROOT, this.config.LTT, this.config.LTRT, this.config.DOMAIN);
                     this.translate = new Translate(this.config);
                     if(this.config.DEV_MODE)
                         this.logger.debug("Create HTTPClient without session",this);
                 }else{
-                    this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+                    this.token = new Token(this.config.ROOT, this.config.LTT, this.config.LTRT, this.config.DOMAIN);
                     this.translate = new Translate(this.config);
                     if(this.config.DEV_MODE)
                         this.logger.debug("Create HTTPClient without session and cookie",this);
@@ -520,7 +520,7 @@ class SocketClient extends Middle {
         this.client = client;
         this.#routes = routes;
         this.emitter = new EventEmitter();
-        this.token = new Token(this.config.LTT, this.config.LTRT, this.config.CSRF_KEY, this.config.DOMAIN);
+        this.token = new Token(this.config.ROOT, this.config.LTT, this.config.LTRT, this.config.DOMAIN);
         client.on('message', message => {
             let data;
             if (typeof message == 'string') {

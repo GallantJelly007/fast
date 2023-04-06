@@ -3,61 +3,67 @@
 const fs = require('fs')
 
 module.exports = class LocalStorage {
-    static #ROOT;
+    static #ROOT='';
     static #storage;
-    static setRoot(root) {
-        this.#ROOT = root;
+
+    static init(root) {
+        this.#ROOT = root
+        LocalStorage.restore()
+    }
+
+    static isSetRoot(){
+        return this.#ROOT==''?false:true
     }
 
     static set(name, value) {
-        this.#storage.set(name, value);
-        this.save();
-        return true;
+        this.#storage.set(name, value)
+        this.save()
+        return true
     }
 
     static unset(name) {
         if (this.#storage.has(name)) {
-            this.#storage.delete(name);
-            this.save();
-            return true;
+            this.#storage.delete(name)
+            this.save()
+            return true
         }
-        return false;
+        return false
     }
 
     static isset(name) {
-        return this.#storage.has(name);
+        return this.#storage.has(name)
     }
 
     static clean() {
         if (fs.existsSync(this.#ROOT + '/storage/localStorage.json')) {
-            fs.unlinkSync(this.#ROOT + '/storage/localStorage.json');
-            this.#storage = new Map();
+            fs.unlinkSync(this.#ROOT + '/storage/localStorage.json')
+            this.#storage = new Map()
         }
     }
 
     static get(name = null) {
-        if (name == null) return this.#storage;
-        else return this.#storage.get(name);
+        if (name == null) return this.#storage
+        else return this.#storage.get(name)
     }
 
     static save() {
-        let data = Object.fromEntries(this.#storage);
-        let obj;
+        let data = Object.fromEntries(this.#storage)
+        let obj
         if (fs.existsSync(this.#ROOT + '/storage/localStorage.json')) {
             obj = JSON.parse(fs.readFileSync(this.#ROOT + '/storage/localStorage.json', 'utf-8'));
-            obj.data = data;
-            obj.update = Date.now();
+            obj.data = data
+            obj.update = Date.now()
         } else {
-            obj = { data: data, create: Date.now(), update: Date.now() };
+            obj = { data: data, create: Date.now(), update: Date.now() }
         }
-        fs.writeFileSync(this.#ROOT + '/storage/localStorage.json', JSON.stringify(obj));
+        fs.writeFileSync(this.#ROOT + '/storage/localStorage.json', JSON.stringify(obj))
     }
     static restore() {
         if (fs.existsSync(this.#ROOT + '/storage/localStorage.json')) {
             let obj = JSON.parse(fs.readFileSync(this.#ROOT + '/storage/localStorage.json', 'utf-8'));
-            this.#storage = new Map(Object.entries(obj.data));
+            this.#storage = new Map(Object.entries(obj.data))
         } else {
-            this.#storage = new Map();
+            this.#storage = new Map()
         }
     }
 }
