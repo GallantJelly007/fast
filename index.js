@@ -1,12 +1,17 @@
+//@ts-check
 //подключение App
-const {App} = require('./core/app');
-const config = require('./core/settings/config') ;
+import { App } from './core/app.js'
+import CONFIG from './core/settings/config.js'
+import url from 'url'
 
+
+const __dirname = (new url.URL('.', import.meta.url).pathname).replace(/^\/|\/$/g, '')
+CONFIG.ROOT = __dirname
 const routes=[];
-//Загрузка роутов из файла
-routes[config.DOMAIN_NAME]=require('./core/settings/routes')
-//Старт нового приложения
-const app = new App(__dirname,config,routes);
+routes[CONFIG.DOMAIN_NAME]= (await import('./core/settings/routes.js')).default
+const app = new App(routes);
+
+
 
 
 

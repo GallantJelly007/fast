@@ -1,9 +1,10 @@
-module.exports = new Map([
+const routes = new Map([
     [/^index$/, 'post/get:example/view'],
     [/^main$/, 'post/get:example/view'],
     [/^$/, 'post/get:example/view'],
-]);
+])
 
+export default routes
 
 /*
 Коллекция роутов обрабатывается приложением автоматически,

@@ -1,6 +1,5 @@
 //@ts-check
-
-const url = require('url');
+import * as url from 'url'
 
 const regular = new Map([
     ["login", /^[a-zA-Z][a-zA-Z0-9-_\.]{3,20}$/],
@@ -108,7 +107,7 @@ const oses = new Map([
     ['Search engine or robot', /(nuhk)|(Googlebot)|(Yammybot)|(Openbot)|(Slurp)|(msnbot)|(Ask Jeeves\/Teoma)|(ia_archiver)/]
 ]);
 
-class Filter {
+export class Filter {
     /**
      * @param {String} type 
      * @param {any} variable 
@@ -247,7 +246,7 @@ class Filter {
     }
 }
 
-module.exports = class InputHttp extends Filter {
+export class InputHttp extends Filter {
     #request;
     constructor(req) {
         super();

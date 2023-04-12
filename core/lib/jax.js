@@ -1,4 +1,4 @@
-class jax{
+export default class jax{
 
     static isServer = typeof window ==='undefined'
     /**
@@ -570,10 +570,3 @@ class JaxRequest{
         });
     }
 }
-
-
-if(typeof window ==='undefined'){
-    module.exports=jax
-}
-
-

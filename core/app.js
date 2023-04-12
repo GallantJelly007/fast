@@ -14,11 +14,15 @@
  */
 
 
-const LocalStorage = require('./lib/storage');
-const Session = require('./lib/session');
-const {Router,SocketClient,HttpClient} = require('./lib/router');
-const Logger = require('./lib/logger');
-const Model = require('./lib/model');
+import LocalStorage from './lib/storage.js';
+import Session from './lib/session.js';
+import { Router,SocketClient,HttpClient} from './lib/router.js';
+import Logger, { UrlError } from './lib/logger.js';
+import Model from './lib/model.js';
+import http from 'http'
+import https from 'https'
+import CONFIG from './settings/config.js';
+import * as WebSocket from 'ws'
 
 /** Массив основных MIME-типов */
 const mimeTypes = new Map([
@@ -120,137 +124,127 @@ const mimeTypes = new Map([
 /**
  * Класс для создания HTTP сервера
  */
-class App {
-    #config;
-    #routes;
-    #logger;
+export class App {
+    #routes
     /**
-     * @param {string} root 
-     * 
-     * Путь к корневой папке проекта
-     *  
-     * @param {object} config 
-     * 
-     * Объект конфигурации
-     * 
      * @param {Array<Map>} routes 
-     * 
      * Массив коллекций разрешенных url адресов приложения
      */
-    constructor(root, config, routes) {
-        this.#config = config
-        this.#config.ROOT = root
+    constructor(routes) {
         this.#routes = routes
-        const server = require(this.#config.REQUIRE_SRV)
-        this.#logger=new Logger(root,"APP")
-        LocalStorage.init(root)
-        Session.setRoot(root)
-        Model.init(config)
-        server.timeout = 120
-
-        server.createServer((request, response) => {
-            let router = new Router(this.#config, this.#routes)
-            router.start(request, response)
-        }).listen(this.#config.PORT)
-     
-        process.on('SIGINT', () => {
-            this.#logger.debug('process.exit(1)','Закрытие App')
+        process.on("SIGINT", () => {
+            Logger.debug('App',"process.exit(1)", "Закрытие App")
             Session.clean()
             LocalStorage.clean()
             process.exit(1)
-        });
-        process.on('SIGQUIT', () => {
-            this.#logger.debug('process.exit(3)','Закрытие App')
+          })
+          process.on("SIGQUIT", () => {
+            Logger.debug('App',"process.exit(3)", "Закрытие App")
             process.exit(3)
-        });
-        process.on('SIGTERM', () => {
-            this.#logger.debug('process.exit(15)','Закрытие App')
+          })
+          process.on("SIGTERM", () => {
+            Logger.debug('App',"process.exit(15)", "Закрытие App")
             process.exit(15)
-        });
+          })
+        try{
+            if(CONFIG.PROTOCOL!='http'&&CONFIG.PROTOCOL!='https'){
+                throw new Error('Указан неверный протокол для приложения')
+            }
+            const server = CONFIG.PROTOCOL=='http'?http:https
+            LocalStorage.init()
+            Model.init()
+            // @ts-ignore
+            server.createServer((request, response) => {
+              try{
+                let router = new Router(this.#routes)
+                router.start(request, response)
+              }catch(err){
+                if(err instanceof UrlError)
+                  Logger.error('App',err,err.url)
+                else
+                  Logger.error('App',err)
+              }
+            }).listen(CONFIG.PORT)
+        }catch(err){
+            Logger.error('App',err)
+        }
     }
 }
 
 /**
  * Класс для создания WebSocket сервера
  */
-class AppSocket {
+export class AppSocket {
     clients = [];
-    #config;
     #routes;
-    #logger;
     
     /**
-     * 
-     * @param {string} root 
-     * 
-     * Путь к корневой папке проекта
-     * 
-     * @param {Object} config 
-     * 
-     * Объект конфигурации
-     * 
      * @param {number} port 
-     * 
      * Номер порта для прослушивания
-     * 
      * @param {Array<Map>} routes 
-     * 
      * Массив коллекций разрешенных url адресов приложения
      */
-    constructor(root,config,port,routes) {
-        const WebSocket = require('ws');
+    constructor(port,routes) {
         const ws = new WebSocket.WebSocketServer({ port: port });
         this.#routes = routes;
-        this.#config = config;
-        this.#config.ROOT = root;
-        this.#logger=new Logger(root,'AppSocket');
-        LocalStorage.init(root)
-        LocalStorage.restore()
-        Session.setRoot(root)
-        Model.init(config)
-
-        ws.on('connection', client => {
-            let newClient = new SocketClient(this.#config, client, this.#routes);
-            newClient.send({ success: 1, message: "success" });
-            this.clients.push(newClient);
-            newClient.emitter.on('close', () => {
-                for (let i = 0; i < this.clients.length; i++) {
-                    if (this.clients[i] == newClient) {
-                        this.clients.splice(i);
-                        break;
-                    }
-                }
-            })
-            newClient.emitter.on('broadcast', (data) => {
-                for (let i = 0; i < this.clients.length; i++) {
-                    if (this.clients[i] == newClient) {
-                        continue;
-                    }
-                    if (data.hasOwnProperty('type')) {
-                        if (this.clients[i].type == data.type && data.type != null) {
-                            this.clients[i].send(data.data);
-                        }
-                    } else {
-                        this.clients[i].send(data.data);
-                    }
-                }
-            })
-        });
-
         process.on('SIGINT', () => {
-            this.#logger.debug('process.exit(1)','Закрытие AppSocket')
+            Logger.debug('process.exit(1)','Закрытие AppSocket')
             Session.clean()
             LocalStorage.clean()
             process.exit(1)
         });
         process.on('SIGQUIT', () => {
-            this.#logger.debug('process.exit(3)','Закрытие AppSocket')
+            Logger.debug('process.exit(3)','Закрытие AppSocket')
             process.exit(3)
         });
         process.on('SIGTERM', () => {
-            this.#logger.debug('process.exit(15)','Закрытие AppSocket')
+            Logger.debug('process.exit(15)','Закрытие AppSocket')
             process.exit(15)
         });
+
+        try{
+            LocalStorage.init()
+            LocalStorage.restore()
+            Model.init(true,CONFIG.ROOT + "/models/extends")
+            ws.on("connection", (client) => {
+              let newClient = new SocketClient(
+                client,
+                this.#routes
+              );
+              newClient.send({ success: 1, message: "success" });
+              this.clients.push(newClient);
+              newClient.emitter.on("close", () => {
+                for (let i = 0; i < this.clients.length; i++) {
+                  if (this.clients[i] == newClient) {
+                    this.clients.splice(i);
+                    break;
+                  }
+                }
+              });
+              newClient.emitter.on("broadcast", (data) => {
+                for (let i = 0; i < this.clients.length; i++) {
+                  if (this.clients[i] == newClient) {
+                    continue;
+                  }
+                  if (data.hasOwnProperty("type")) {
+                    if (
+                      this.clients[i].type == data.type &&
+                      data.type != null
+                    ) {
+                      this.clients[i].send(data.data);
+                    }
+                  } else {
+                    this.clients[i].send(data.data);
+                  }
+                }
+              });
+            });
+        }catch(err){
+          if(err instanceof UrlError)
+            Logger.error('AppSocket',err,err.url)
+          else
+            Logger.error('AppSocket',err)
+        }
     }
 
     /**
@@ -262,5 +256,3 @@ class AppSocket {
         process.on('exit', () => { func(this.clients) });
     }
 }
-
-module.exports = {App,AppSocket}

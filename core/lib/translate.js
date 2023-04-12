@@ -1,18 +1,27 @@
 //@ts-check
 
-module.exports = class Translate{ 
-    #config;
-    #lang=null
-    #strings=[]
+import Logger from "./logger.js";
+import url from 'url'
+import CONFIG from "../settings/config.js";
 
-    constructor(config,lang=null){
-        this.#config=config;
-        this.#lang = lang;
-        let lng=this.#lang!=null&&this.#lang!=""?this.#lang:this.#config.DEFAULT_LOCALE
-        if(this.#config.IS_ON_STATIC_TRANSLATE){
-            this.#strings = require(this.#config.LOCALE_PATH+'/'+lng)
-        } 
+export default class Translate{ 
+    #lang
+    #strings={}
+    
+    constructor(lang=null){
+        let lng=lang!=null&&lang!=""?lang:CONFIG.LOCALE 
+        this.#lang = lng;
     } 
+
+    async init(){
+        if(CONFIG.IS_ON_STATIC_TRANSLATE){
+            this.#strings = (await import(url.pathToFileURL(CONFIG.ROOT).href+'/'+CONFIG.LOCALE_PATH+'/locale_'+this.#lang+'.js')).default
+            return true
+        }else{ 
+            return false
+        }
+    }
+
     t(field,params=[]){
         if(this.#strings.hasOwnProperty(field)){
             let text = this.#strings[field]

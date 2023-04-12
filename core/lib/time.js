@@ -1,4 +1,4 @@
-class Time{
+export default class Time{
     /** Количество миллисекунд прошедших с начала эпохи UNIX*/
     timestamp = 0
      /** Количество миллисекунд прошедших с начала 1 января 1 года н.э */
@@ -128,7 +128,7 @@ class Time{
     }
 
     /** Стандартное значение временной зоны, UTC-0 по умолчанию*/
-    static defaultTz=Time.TIMEZONE.utc
+    static #defaultTz=Time.TIMEZONE.utc
 
     /**
      * ISO форматы, могут применяться для форматирования строки с помощью метода toISO()
@@ -189,7 +189,6 @@ class Time{
      */
     static isLeapYear(year) {
         if (year < 1 || year > 9999) {
-            console.log(year)
             throw new Error("Year out of range Exception")
         }
         return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
@@ -203,7 +202,7 @@ class Time{
     static setDefaultTz(tz){
         for(let key in Time.TIMEZONE){
             if(Time.TIMEZONE[key]==tz){
-                Time.defaultTz=Time.TIMEZONE[key]
+                Time.#defaultTz=Time.TIMEZONE[key]
                 return true
             }
         }
@@ -296,7 +295,7 @@ class Time{
      * @returns {Time}
      * Возвращает объект Time
      */ 
-    static create(year=1970,month=1,day=1,hours=0,minutes=0,seconds=0,ms=0,tz=Time.TIMEZONE.utc){
+    static create(year=1970,month=1,day=1,hours=0,minutes=0,seconds=0,ms=0,tz=Time.#defaultTz){
         let t = new Time()
         t.#calcTicks({
             year:year,
@@ -342,15 +341,11 @@ class Time{
             if(typeof param=='number'){
                 this.timestamp = param
             }else if(param instanceof Date){
-                if(typeof window ==='undefined'){
-                    this.timestamp=param.getTime()
-                }else{
-                    this.timestamp=param.getTime()-(param.getTimezoneOffset()*60*1000)
-                }
+                this.timestamp=param.getTime()
             }else if(param instanceof Time){
                 this.timestamp=param.ticks
             }else{
-                this.timestamp=new Date().getTime()
+                this.timestamp=Date.now()
             }
             if(tz!==null){
                 let isset=false
@@ -362,12 +357,11 @@ class Time{
                     }
                 }
                 if(!isset){
-                    this.tz=Time.defaultTz
+                    this.tz=Time.#defaultTz
                 }
             }else{
-                this.tz=Time.defaultTz
+                this.tz=Time.#defaultTz
             }
-            this.timestamp+=(this.tz*3600*1000)
             this.#calcDate()
         }
     }
@@ -421,7 +415,6 @@ class Time{
                 break
             }
         } 
-        console.log(objDate)
         this.#calcTicks({
             year:objDate.year,
             month:objDate.month,
@@ -436,11 +429,12 @@ class Time{
 
     #calcDate(){
         this.ticks=Time.timestampToTicks(this.timestamp)
-        let days = this.ticks/86400000
+        let calcTicks = this.ticks+(this.tz*3600*1000)
+        let days = calcTicks/86400000
         let leapDays = days/1461-days/36524+days/146097+59/365
-        let years = ((this.ticks/86400000) - leapDays)/365;
+        let years = ((calcTicks/86400000) - leapDays)/365;
         this.year=Math.trunc(years)+1
-        let daysInYear = Math.trunc(((this.ticks-(Math.floor(leapDays)*86400000))-((this.year-1)*365*86400000))/86400000)
+        let daysInYear = Math.trunc(((calcTicks-(Math.floor(leapDays)*86400000))-((this.year-1)*365*86400000))/86400000)
         this.isLeap=Time.isLeapYear(this.year)
         let arrDays = this.isLeap?Time.#daysMonthLeapYear:Time.#daysMonthYear
         let month=0;
@@ -467,7 +461,7 @@ class Time{
             }
             isCorrect=true
         }
-        if(day-1==0&&!this.isLeap&&!isCorrect&&(this.ticks/86400000>1)){
+        if(day-1==0&&!this.isLeap&&!isCorrect&&(calcTicks/86400000>1)){
             if(month-1==0){
                 month = 12;
                 this.year+=this.year!=1?-1:0;
@@ -481,13 +475,13 @@ class Time{
 
         this.month=month
         this.day=day
-        this.decimalHours = (this.ticks%86400000)/3600000
-        this.decimalMinutes = (this.ticks%3600000)/60000
-        this.decimalSeconds = (this.ticks%60000)/1000
+        this.decimalHours = (calcTicks%86400000)/3600000
+        this.decimalMinutes = (calcTicks%3600000)/60000
+        this.decimalSeconds = (calcTicks%60000)/1000
         this.hours = Math.trunc(this.decimalHours)
         this.minutes = Math.trunc(this.decimalMinutes)
         this.seconds = Math.trunc(this.decimalSeconds)
-        this.milliseconds = this.ticks%1000
+        this.milliseconds = calcTicks%1000
         this.dayOfWeek=Math.abs(((days%7)-6)<=0?((days%7)-6)+7:((days%7)-6))
     }
 
@@ -532,7 +526,7 @@ class Time{
         }
         this.isLeap = this.year%4==0&&(this.year%100!=0||this.year%400==0)
         this.ticks = Math.trunc(days*24*3600*1000)+timeTicks
-        this.ticks+=(this.ticks<Math.abs(this.tz*3600000)&&this.tz<0)?-this.ticks:(this.tz*3600000)
+        this.ticks += (this.tz*3600000*-1)
         this.timestamp = Time.ticksToTimestamp(this.ticks)
     }   
 
@@ -545,25 +539,18 @@ class Time{
      * Установка новой временной зоны для текущего объекта Time
      * @param {number} tz 
      * Временная зона из массива Time.TIMEZONE
-     * @param {boolean} diff
-     * Параметр отвечающий за вычитание разницы времени между старой и новой временной зоной, по умолчанию - true
     */
-    setTz(tz,diff=true){
+    setTz(tz){
         let isset=false
         for(let key in Time.TIMEZONE){
             if(Time.TIMEZONE[key]==tz){
-                if(diff){
-                    let diffTz=Time.TIMEZONE[key]-this.tz
-                    this.ticks+=(diffTz*3600*1000)
-                }
                 this.tz=Time.TIMEZONE[key]
                 isset=true
                 break
             }
         }
-        if(isset&&diff){
+        if(isset)
             this.#calcDate()
-        }
         return this
     }
 
@@ -902,8 +889,4 @@ class Time{
     valueOf(){
         return this.ticks
     }
-}
-
-if(typeof window ==='undefined'){
-    module.exports=Time
 }

@@ -1,82 +1,76 @@
 //@ts-check
 
-const {Client} = require('pg');
-const fs = require('fs');
+import pg from 'pg'
+import * as fs from 'fs'
+import NamingCase from './naming.js';
+import CONFIG from '../settings/config.js';
 
-module.exports = class Model {
+export default class Model {
     static table = null;
     static primary = null;
     #position = 1;
     #lastQuery = '';
     #data = [];
     #query = '';
-    static #config;
+    static classesNamingType = NamingCase.cases.PASCAL_CASE
+    static namingType = NamingCase.cases.CAMEL_CASE
 
     /**
-     * 
-     * @param {object} config 
-     * @param {object} options 
-     * 
-     * Объект опций для миграции и создания моделей БД
-     * 
-     * @param {boolean} options.isCreateModels
+     * @param {boolean} isCreateModels
      * 
      * Переменная указывающая нужно ли создавать файл с моделями
      * 
-     * @param {string} options.modelCreatePath
+     * @param {string} modelCreateFolder
      * 
      * Путь к папке для создания файла с моделями БД (Например: D://users/models)
      */
-    static async init(config, options={isCreateModels:false,modelCreatePath:''}){
+    static async init(isCreateModels=false, modelCreateFolder=''){
         let params = ['DB_USER','DB_HOST','DB_NAME','DB_PASS','DB_PORT']
         try{
-            Model.#config=config
             for(let key of params){
-                if(!Model.#config[key]||Model.#config[key]==''){
-                    throw `param ${key} no find in config file or empty value`
+                if(!CONFIG[key]||CONFIG[key]==''){
+                    throw new Error(`param ${key} no find in config file or empty value`)
                 }
             }
-            if(options?.isCreateModels&&options?.modelCreatePath){
-                if(!fs.existsSync(options.modelCreatePath)){
-                    fs.mkdirSync(options.modelCreatePath)
+            if(isCreateModels&&modelCreateFolder!=''){
+                if(!fs.existsSync(modelCreateFolder)){
+                    fs.mkdirSync(modelCreateFolder)
                 }
                 let columns = await Model.#getTableInfo()
                 let table=null
-                let classes=[]
-                let script = `const Model = require('../core/lib/model')\n`
+                let script = `import Model from "${CONFIG.ROOT}/core/lib/model.js"\n`
                 for(let col of columns){
                     if(table==null||col.table_name!=table){
                         script+=table!=null?'\n}\n\n':''
                         table = col.table_name
-                        let name = table.split('_').map(str=>str[0].toUpperCase() + str.substr(1)).toString().split(',').join('')
-                        classes.push(name)
+                        let name = NamingCase.toNaming(table,Model.classesNamingType)
                         let key = await Model.#getTablePrimary(table)
                         if(key){
                             key=key[0].pkey
-                            script+=`class ${name} extends Model{\n   static table = '${table}'\n   static primary='${key}'`
+                            script+=`export class ${name} extends Model{\n   static table = '${table}'\n   static primary='${key}'`
                         }
                     }
-                    script+=`\n   ${col.column_name} = null`
+                    script+=`\n   ${NamingCase.toNaming(col.column_name,Model.namingType)} = null`
                 }
-                script+=`\n}\n\nmodule.exports = {${classes.toString().split(',').join(', ')}}`
-                fs.open(`${options.modelCreatePath}/models.js`, 'w', (err) => {
+                script+=`\n}`
+                fs.open(`${modelCreateFolder}/model.extends.js`, 'w', (err) => {
                     if(err) throw err;
-                    fs.writeFile(`${options.modelCreatePath}/extends.js`,script,err=>{
+                    fs.writeFile(`${modelCreateFolder}/model.extends.js`,script,err=>{
                         if(err) throw err;
-                        console.log('Models init success!');
+                        return true
                     })
                 });
             }else{
-                console.log('Models init success!');
+                return true
             }
         }catch(err){
-            console.error(err)
+            throw err
         }
     }
 
     static #getTableInfo(){
         return new Promise((resolve, reject) => {
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             connect.con().then(connect => {
                 connect.query(`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name`, [],result => {
                     connect.client.end();
@@ -89,7 +83,7 @@ module.exports = class Model {
 
     static #getTablePrimary(tableName){
         return new Promise((resolve,reject)=>{
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             connect.con().then(connect => {
                 connect.query(
                 `SELECT a.attname AS pkey
@@ -346,7 +340,7 @@ module.exports = class Model {
             }
             // @ts-ignore
             let strQuery = `INSERT INTO ${this.constructor.table} (${names.toString()}) VALUES (${values.toString()}) RETURNING ${this.constructor.primary}`;
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             connect.con().then(connect => {
                 connect.query(strQuery, data, result => {
                     this.#position = 1;
@@ -398,7 +392,7 @@ module.exports = class Model {
                     }
                 }
             }
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             // @ts-ignore
             this.#query=`UPDATE ${this.constructor.table} SET ${names.toString() + conditions}`
             try{
@@ -444,7 +438,7 @@ module.exports = class Model {
      */
     send(wordSensetive = true) {
         return new Promise((resolve, reject) => {
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             try{
                 connect.con().then(connect => {
                     connect.query(this.#query, this.#data, result => {
@@ -535,7 +529,7 @@ module.exports = class Model {
 
     delete(){
         return new Promise((resolve, reject) => {
-            let connect = new Connect(Model.#config);
+            let connect = new Connect(CONFIG);
             // @ts-ignore
             this.#query=`DELETE FROM ${this.constructor.table} WHERE ${this.constructor.primary} = ${this[this.constructor.primary]}`
             try{
@@ -558,31 +552,14 @@ module.exports = class Model {
         });
     }
 
-    static parse(objs,join=false,nameStyle='none') {
+    static parse(objs,join=false) {
         let objects = [];
         if(objs==null||objs.length==0) return null;
         for (let item of objs) {
             let obj;
             obj = new this();
             for (let key in item) {
-                let newName=''
-                switch(nameStyle){
-                    case 'camel-case':{
-                        newName = key.split('_').map((elem, index) => {
-                            let str = elem;
-                            if (index != 0) str = str.replace(/^[\w]/, (m) => m.toUpperCase());
-                            return str;
-                        }).join('');
-                        break;
-                    }
-                    case 'pascal-case':
-                    case 'kebab-case':
-                    case 'none':
-                    default:{
-                        newName=key;
-                        break;
-                    }
-                }
+                let newName = NamingCase.toNaming(key,Model.namingType)
                 for (let name in obj) {
                     if (name == newName||join) {
                         obj[newName] = item[key];
@@ -607,7 +584,7 @@ class Connect {
     config;
     constructor(config) {
         this.config=config
-        this.client = new Client({
+        this.client = new pg.Client({
             user: this.config.DB_USER,
             host: this.config.DB_HOST,
             database: this.config.DB_NAME,
