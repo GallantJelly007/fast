@@ -70,8 +70,8 @@ export default class LocalStorage {
     static clean() {
         return new Promise((resolve,reject)=>{
             try{
-                if (fs.existsSync(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json')) {
-                    fs.unlink(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json',()=>{
+                if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
+                    fs.unlink(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`,()=>{
                         this.#storage = new Map()
                         resolve(true)
                     })
@@ -101,15 +101,15 @@ export default class LocalStorage {
             try{
                 let data = Object.fromEntries(this.#storage)
                 let obj
-                if (fs.existsSync(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json')) {
-                    obj = JSON.parse(fs.readFileSync(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json', 'utf-8'));
+                if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
+                    obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, 'utf-8'));
                     obj.data = data
                     obj.update = new Time()
                 } else {
                     let createTime = new Time()
                     obj = { data: data, create: createTime, update: createTime }
                 }
-                fs.writeFile(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json', JSON.stringify(obj),(err)=>{
+                fs.writeFile(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, JSON.stringify(obj),(err)=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })
@@ -121,8 +121,8 @@ export default class LocalStorage {
     
     static #restore() {
         try{
-            if (fs.existsSync(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json')) {
-                let obj = JSON.parse(fs.readFileSync(LocalStorage.#CONFIG.ROOT + '/storage/localStorage.json', 'utf-8'));
+            if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
+                let obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, 'utf-8'));
                 this.#storage = new Map(Object.entries(obj.data))
             } else {
                 this.#storage = new Map()

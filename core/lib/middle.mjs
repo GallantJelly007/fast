@@ -6,14 +6,16 @@ import Session from './session.mjs'
 import { InputHttp } from './input.mjs'
 import Logger from './logger.mjs'
 import { RouterSocket } from './router.mjs'
+import PATHES from '../settings/pathes.mjs'
 
 import * as fs from 'fs'
 import * as nodemailer from 'nodemailer'
 import { EventEmitter } from 'events'
 import Nun from 'nunjucks'
+import path from 'path'
 
 
-class Middle {
+export class Middle {
 
     static #CONFIG
 
@@ -102,7 +104,7 @@ class Middle {
 
     /**
      * @async
-     * @param {String} path 
+     * @param {String} pathFile 
      * Путь до HTML-шаблона
      * @param {Object} param 
      * Объект с параметрами которые используется для подстановки в шаблон
@@ -110,11 +112,14 @@ class Middle {
      * @desc Рендерит HTML-шаблон .html и возвращает его через Promise
      */
 
-    render(path, param = null) {
+    render(pathFile, param = null) {
+        if(!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))){
+            pathFile = path.resolve(Middle.#CONFIG.ROOT,pathFile)
+        }
         return new Promise((resolve, reject) => {
-            if (!fs.existsSync(path)) reject(false)
+            if (!fs.existsSync(pathFile)) reject(false)
             param = param != null ? { domain: Middle.#CONFIG.DOMAIN, root: param } : { domain: Middle.#CONFIG.DOMAIN }
-            Nun.render(path, param, (err, html) => {
+            Nun.render(pathFile, param, (err, html) => {
                 if (err) reject(err)
                 resolve(html)
             })
@@ -213,15 +218,18 @@ export class HttpClient extends Middle {
 
     /**
      * 
-     * @param {String} path 
+     * @param {String} pathFile 
      * Путь до HTML-шаблона
      * @param {Object} param 
      * Объект с параметрами которые используется для подстановки в шаблон
      * @desc Рендерит HTML-шаблон .html и отправляет клиенту
      */
-    view(path, param = null) {
+    view(pathFile, param = null) { //Неполадки с путями
+        if(!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))){
+            pathFile = path.resolve(HttpClient.#CONFIG.ROOT,pathFile)
+        }
         param = param != null ? { domain: HttpClient.#CONFIG.DOMAIN, p: param } : { domain: HttpClient.#CONFIG.DOMAIN}
-        Nun.render(path, param, (err, html) => {
+        Nun.render(pathFile, param, (err, html) => {
             if (err == null) {
                 this.response.write(html)
                 this.response.end()

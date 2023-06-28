@@ -41,12 +41,12 @@ export default class Logger{
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
             if(!fs.existsSync(Logger.#CONFIG.ROOT+`/log/${fileName}`)){
-                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
+                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text} `:''}${textObj}\n`,(err)=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })
             }else{
-                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
+                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text} `:''}${textObj}\n`,(err)=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })

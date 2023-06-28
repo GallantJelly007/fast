@@ -1,4 +1,4 @@
-import CONFIG from 'project-config.mjs'
+import CONFIG from './project-config.mjs'
 import * as url from 'url'
 import { AppHttp } from 'fastflash'
 

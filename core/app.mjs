@@ -86,6 +86,7 @@ export class AppHttp {
               Logger.error('App',err)
           }
         }).listen(AppHttp.#CONFIG.PORT)
+        Logger.debug('APP:',`Приложение запущенно перейдите на ${AppHttp.#CONFIG.DOMAIN}:${AppHttp.#CONFIG.PORT}`)
       }catch(err){
         Logger.error('App',err)
       }

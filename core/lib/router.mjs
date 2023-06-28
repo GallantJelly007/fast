@@ -101,6 +101,7 @@ export class Router {
             if (!isStatic) {
                 let ref = request.headers['x-forwarded-host']
                 ref = ref ?? request.headers['host']
+                ref = ref.replace(/\:[0-9]*/,'')
                 let routes = null
                 for (let key in this.#routes) {
                     let reg = new RegExp(`^${key}$`)
@@ -138,8 +139,8 @@ export class Router {
                         }
                         let methods = route[0].split('/')
                         route = route[1].split('/')
-                        let path1 = `${Router.#CONFIG.ROOT}/controllers/${route[0]}.mjs`
-                        let path2 = `${Router.#CONFIG.ROOT}/controllers/${route[0]}.js`
+                        let path1 = `${Router.#CONFIG.CONTROLLERS_PATH}/${route[0]}.mjs`
+                        let path2 = `${Router.#CONFIG.CONTROLLERS_PATH}/${route[0]}.js`
                         let controllerPath = ''
                         if (fs.existsSync(path1)) {
                             controllerPath = path1
@@ -149,7 +150,7 @@ export class Router {
                             }else{
                                 response.statusCode = 404
                                 response.end()
-                                throw new Error('Не найден контроллер для запроса')
+                                throw new Error('Не найден контроллер для запроса, проверьте переменную CONTROLLERS_PATH в файле конфигурации и файл с роутами')
                             }
                         }
                         route.shift()

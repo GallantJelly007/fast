@@ -3,27 +3,36 @@ import * as fs from 'fs'
 
 try{
     if(process.env.INIT_CWD){
-        let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0]
-        let rootModule = process.env.INIT_CWD
+        let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0].replace(/[\\]+/g,'/')
+        let rootModule = process.env.INIT_CWD.replace(/[\\]+/g,'/')
+        console.log(rootProject)
+        console.log(rootModule)
         if (fs.existsSync(rootProject)) {
             console.log(rootProject)
             if(!fs.existsSync(`${rootProject}/src`)){
                 fs.mkdir(`${rootProject}/src`,{recursive: true}, (err) => {
                     if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                     if(!fs.existsSync(`${rootProject}/project-config.mjs`)){
-                        fs.writeFile(`${rootProject}/project-config.mjs`,createConfig(`${rootProject}/src`),(err)=>{
+                        fs.writeFile(`${rootProject}/project-config.mjs`,createConfig({
+                            root:`${rootProject}/src`,
+                            controllersPath:`${rootProject}/src/controllers`,
+                            storagePath:`${rootProject}/src/storage`,
+                            sessionsPath:`${rootProject}/src/storage/sessions`
+                        }),(err)=>{
                             if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                            let configPath = {CONFIG_PATH:`${rootProject}/src/project-config.mjs`}
-                            fs.writeFile(`${rootModule}/core/settings/pathes.json`,JSON.stringify(configPath),err=>{
-                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                            })
                         })
                     }
+                    fs.writeFile(`${rootModule}/core/settings/pathes.mjs`,createPathes(rootModule,`${rootProject}/project-config.mjs`),err=>{
+                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                    })
                     if(!fs.existsSync(`${rootProject}/src/routes`)){
                         fs.mkdirSync(`${rootProject}/src/routes`,{recursive: true})
                     }
                     if(!fs.existsSync(`${rootProject}/src/public`)){
                         fs.mkdirSync(`${rootProject}/src/public`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/views`)){
+                        fs.mkdirSync(`${rootProject}/src/views`,{recursive: true})
                     }
                     if(!fs.existsSync(`${rootProject}/src/storage/resources`)){
                         fs.mkdirSync(`${rootProject}/src/storage/resources`,{recursive: true})
@@ -57,6 +66,11 @@ try{
                             if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                         })
                     }
+                    if(!fs.existsSync(`${rootProject}/src/views/example.html`)){
+                        fs.copyFile(`${rootModule}/core/base/example.html`,`${rootProject}/src/views/example.html`,(err)=>{
+                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        })
+                    }
                 })
             }
         }
@@ -67,7 +81,7 @@ try{
     console.error(`INIT COMMAND ERR:\n${err.stack}`)
 }
 
-function createConfig(root){
+function createConfig(params){
     return `export default class CONFIG{
         /**Переменная для логера*/
         static DEBUG=true
@@ -106,11 +120,11 @@ function createConfig(root){
         /**Переменная для включения подписей куки*/
         static COOKIE_SIGN=false
         /**Доменное имя без протокола*/
-        static DOMAIN_NAME='fast'
+        static DOMAIN_NAME='localhost'
         /**Протокол для websocket*/
         static PROTOCOL_SOCKET='ws'
         /**Путь к корневой папке проекта*/
-        static ROOT='${root}'
+        static ROOT='${params.root}'
         /**Используемый протокол http|https*/
         static PROTOCOL = 'http'
         /**Полное доменное имя с протоколом*/
@@ -122,9 +136,15 @@ function createConfig(root){
         /**Переменная для включения статического перевода, для правильной работы нужны файлы локализации и установленныне переменные LOCALE_PATH и LOCALE*/
         static IS_ON_STATIC_TRANSLATE=true;
         /**Путь к папке с файлами локализации*/
-        static LOCALE_PATH = 'storage/resources'
+        static LOCALE_PATH = 'storage/resources/locales'
+        /**Путь к папке с контроллерами*/
+        static CONTROLLERS_PATH='${params.controllersPath}'
+        /**Стандартный язык локализации*/
+        static STORAGE_PATH='${params.storagePath}'
         /**Стандартный язык локализации*/
         static LOCALE='ru'
+        /**Путь к хранилищу сессий*/
+        static SESSIONS_PATH='${params.sessionsPath}'
         /**Время в часах после которых сессия становится не действительной*/
         static SESSION_CLEAN_TIME=24
         /**Массив путей для статических файлов*/
@@ -161,4 +181,11 @@ function createConfig(root){
         static A_TOKEN_FIELD = 'access_token'
         static R_TOKEN_FIELD = 'refresh_token'
     }`
+}
+
+function createPathes(rootModule,configPath){
+    return `export default class PATHES{
+    static ROOT_MODULE = '${rootModule}'
+    static CONFIG_PATH = '${configPath}'
+}`
 }

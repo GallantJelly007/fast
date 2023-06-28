@@ -1,7 +1,7 @@
 export default new Map([
-    [/^index$/, 'post/get:exampleController/view'],
-    [/^main$/, 'post/get:exampleController/view'],
-    [/^$/, 'post/get:exampleController/view'],
+    [/^index$/, 'post/get:ExampleController/view'],
+    [/^main$/, 'post/get:ExampleController/view'],
+    [/^$/, 'post/get:ExampleController/view'],
 ])
 
 /*

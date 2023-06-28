@@ -1,12 +1,12 @@
 {
     "name": "fastflash",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Mini Node.js framework",
-    "main": "./index.mjs",
-    "exports": "./index.mjs",
+    "main": "./index.js",
+    "exports": "./index.js",
     "type": "module",
     "scripts": {
-        "fast-init": "node ./core/scripts/initializer.js"
+        "init": "node ./core/scripts/initializer.js"
     },
     "repository": {
         "type": "git",
