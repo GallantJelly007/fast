@@ -1,6 +1,6 @@
 {
     "name": "fastflash",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "description": "Mini Node.js framework",
     "main": "./index.js",
     "exports": "./index.js",
