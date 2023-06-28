@@ -1,5 +1,6 @@
 //@ts-check
 import * as url from 'url'
+import Logger from './logger.mjs'
 
 const regular = new Map([
     ["login", /^[a-zA-Z][a-zA-Z0-9-_\.]{3,20}$/],
@@ -7,6 +8,103 @@ const regular = new Map([
     ["email", /^[\w.]+@([A-z0-9][-A-z0-9]+\.)+[A-z]{2,4}$/],
     ["pass", /^[^А-Яа-яЁё]{8,20}$/],
     ["telephone", /^(\+)([- _():=+]?\d[- _():=+]?){11,14}(\s*)?$/]
+]);
+
+/** Массив основных MIME-типов */
+const mimeTypes = new Map([
+    ['.atom', 'application/atom+xml'],
+    ['.edi', 'application/EDI-X12'],
+    ['.edi', 'application/EDIFACT'],
+    ['.json', 'application/json'],
+    ['.js', 'application/javascript'],
+    ['.bin', 'application/octet-stream'],
+    ['.ogg', 'application/ogg'],
+    ['.pdf', 'application/pdf'],
+    ['.ps', 'application/postscript'],
+    ['.xml', '.application/soap+xml'],
+    ['.woff', 'application/font-woff'],
+    ['.xhtml', 'application/xhtml+xml'],
+    ['.xml', 'application/xml-dtd'],
+    ['.xml', 'application/xop+xml'],
+    ['.zip', 'application/zip'],
+    ['.gzip', 'application/gzip'],
+    ['.torrent', 'application/x-bittorrent'],
+    ['.dvi', 'application/x-tex'],
+    ['.xml', 'application/xml'],
+    ['.doc', 'application/msword'],
+    ['.docx', 'application/msword'],
+    ['.audio', 'audio/basic'],
+    ['.audio', 'audio/L24'],
+    ['.mp4', 'audio/mp4'],
+    ['.aac', 'audio/aac'],
+    ['.mp3', 'audio/mpeg'],
+    ['.ogg', 'audio/ogg'],
+    ['.oga', 'audio/vorbis'],
+    ['.wma', 'audio/x-ms-wma'],
+    ['.wma', 'audio/x-ms-wax'],
+    ['.rm', 'audio/vnd.rn-realaudio'],
+    ['.wav', 'audio/vnd.wave'],
+    ['.webm', 'audio/webm'],
+    ['.gif', 'image/gif'],
+    ['.jpeg', 'image/jpeg'],
+    ['.jpg', 'image/jpeg'],
+    ['.jpe', 'image/jpeg'],
+    ['.jpeg', 'image/pjpeg'],
+    ['.jpg', 'image/pjpeg'],
+    ['.jpe', 'image/pjpeg'],
+    ['.png', 'image/png'],
+    ['.svg', 'image/svg+xml'],
+    ['.tiff', 'image/tiff'],
+    ['.ico', 'image/vnd.microsoft.icon'],
+    ['.ico', 'image/x-icon'],
+    ['.wbmp', 'image/vnd.wap.wbmp'],
+    ['.webp', 'image/webp'],
+    ['.http', 'message/http'],
+    ['.xml', 'message/imdn+xml'],
+    ['.txt', 'message/partial'],
+    ['.mht', 'message/rfc822'],
+    ['.mhtml', 'message/rfc822'],
+    ['.eml', 'message/rfc822'],
+    ['.mime', 'message/rfc822'],
+    ['.example', 'model/example'],
+    ['.igs', 'model/iges'],
+    ['.iges', 'model/iges'],
+    ['.msh', 'model/mesh'],
+    ['.mesh', 'model/mesh'],
+    ['.silo', 'model/mesh'],
+    ['.wrl', 'model/vrml'],
+    ['.vrml', 'model/vrml'],
+    ['.x3d', 'model/x3d+binary'],
+    ['.x3d', 'model/x3d+vrml'],
+    ['.x3d', 'model/x3d+xml'],
+    ['.cmd', 'text/cmd'],
+    ['.css', 'text/css'],
+    ['.csv', 'text/csv'],
+    ['.html', 'text/html'],
+    ['.htm', 'text/html'],
+    ['.js', 'text/javascript'],
+    ['.txt', 'text/plain'],
+    ['.php', 'text/php'],
+    ['.xml', 'text/xml'],
+    ['.md', 'text/markdown'],
+    ['.manifest', 'text/cache-manifest'],
+    ['.otf','font/otf'],
+    ['.ttf','font/ttf'],
+    ['.woff','font/woff'],
+    ['.mpg', 'video/mpeg'],
+    ['.mpeg', 'video/mpeg'],
+    ['.mp4', 'video/mp4'],
+    ['.ogg', 'video/ogg'],
+    ['.mov', 'video/quicktime'],
+    ['.qt', 'video/quicktime'],
+    ['.webm', 'video/webm'],
+    ['.wmv', 'video/x-ms-wmv'],
+    ['.flv', 'video/x-flv'],
+    ['.avi', 'video/x-msvideo'],
+    ['.3gp', 'video/3gpp'],
+    ['.3gpp', 'video/3gpp'],
+    ['.3g2', 'video/3gpp2'],
+    ['.3gpp2', 'video/3gpp2']
 ]);
 
 const oses = new Map([
@@ -109,10 +207,10 @@ const oses = new Map([
 
 export class Filter {
     /**
+     * Валидирует данные с помощью регулярных выражений возвращает null если нет подходящего типа для проверки
      * @param {String} type 
      * @param {any} variable 
      * @returns {boolean|null} true|false|null
-     * @desc Валидирует данные с помощью регулярных выражений возвращает null если нет подходящего типа для проверки
      */
     validate(type, variable) {
         for (let [key, value] of regular) {
@@ -129,80 +227,68 @@ export class Filter {
     }
 
     /**
-     * 
-     * @param {String} uri 
+     * Функция для парсинга входящих данных HTTP-запроса
+     * @param {string} uri 
      * @param {boolean} hardCheck 
-     * @returns {Object}
-     * @desc Парсит данные из Ajax запроса если они передаются блоками и возвращает объект 
+     * @returns {Object} 
      */
     parseData(uri, hardCheck = false) {
-        let reg = new RegExp(/content-disposition/, 'gi');
+        let reg = new RegExp(/content-disposition/, 'gi')
         if (reg.test(uri)) {
-            let obj = {};
-            let data = uri.split(/--[\w\-\_\@\#\~\(\)\[\]\\\/\*\.\,\?\^\&\+\:\;\'\"\`\$\<\>]+/);
+            let obj = {}
+            let data = uri.split(/--[\w\-\_\@\#\~\(\)\[\]\\\/\*\.\,\?\^\&\+\:\;\'\"\`\$\<\>]+/)
             for (let i = 0; i < data.length; i++) {
-                data[i] = data[i].replace(/[\n\r\t]+/g, ';');
-                let arr = data[i].split(';');
+                data[i] = data[i].replace(/[\n\r\t]+/g, ';')
+                let arr = data[i].split(';')
                 if (arr.length > 1) {
-                    let name;
+                    let name
                     for (let item of arr) {
                         if (/name="([^"]+)"/.test(item)) {
-                            name = item.match(/name="([^"]+)"/);
+                            name = item.match(/name="([^"]+)"/)
                             if (name != null) {
-                                name = name[1];
-                                arr.pop();
-                                let value = arr.pop();
+                                name = name[1]
+                                arr.pop()
+                                let value = arr.pop()
                                 if (value != undefined && /^(false|true)$/i.test(value)) {
                                     // @ts-ignore
-                                    value = value.toLowerCase() === "true" ? true : false;
+                                    value = value.toLowerCase() === "true" ? true : false
                                 }
                                 if (value != undefined && /^[0-9]*[\.]?[0-9]+$/g.test(value)) {
                                     // @ts-ignore
-                                    value = Number(value);
+                                    value = Number(value)
                                 }
-                                obj[name] = value;
-                                break;
+                                obj[name] = value
+                                break
                             }
                         }
                     }
                 }
             }
-            return obj;
+            return obj
         } else {
-            return this.parseURI(uri);
+            let arr = uri.split("&");
+            let result = {};
+            for (let item of arr) {
+                let spl = item.split("=");
+                if (spl.length == 2)
+                    result[spl[0]] = decodeURIComponent(spl[1]);
+                else 
+                    if (hardCheck) return false;
+            }
+            for (let key in result) {
+                if (/^(false|true)$/i.test(result[key])) {
+                    result[key] =result[key].toLowerCase() === "true" ? true : false;
+                }
+                if (/^[0-9]*[\.]?[0-9]+$/g.test(result[key])) {
+                    result[key] = Number(result[key])
+                }
+            }
+            return result
         }
     }
 
     /**
-     * 
-     * @param {String} uri 
-     * @param {boolean} hardCheck 
-     * @returns {Object} Возвращает объект с параметрами из URL(URI) строки
-     */
-    parseURI(uri, hardCheck = false) {
-        let arr = uri.split('&');
-        let result = {};
-        for (let item of arr) {
-            let spl = item.split('=');
-            if (spl.length == 2) {
-                result[spl[0]] = decodeURIComponent(spl[1]);
-            } else {
-                if (hardCheck) return false;
-            }
-        }
-        for (let key in result) {
-            if (/^(false|true)$/i.test(result[key])) {
-                result[key] = result[key].toLowerCase() === "true" ? true : false;
-            }
-            if (/^[0-9]*[\.]?[0-9]+$/g.test(result[key])) {
-                result[key] = Number(result[key]);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 
+     * Получение данных с валидацией в соответствии с регулярными выражениями
      * @param {Object} data 
      * @param {boolean} hardCheck 
      * @returns {boolean|Object} true|Object
@@ -224,10 +310,9 @@ export class Filter {
     }
 
     /**
-     * 
+     * Функция для очистки данных в объекте, массиве или строке от html тегов
      * @param {(Array|Object|String)} data 
      * @returns {(Array|Object|String)} 
-     * @desc Очищает данные в объекте, массиве или строке от html тегов
      */
     stripTags(data) {
         let reg = /(<)([\/]{0,1})[^\<\>]+(>)/g;
@@ -247,31 +332,45 @@ export class Filter {
 }
 
 export class InputHttp extends Filter {
+
     #request;
     constructor(req) {
         super();
         this.#request = req;
     }
 
-    getData(method = 'POST') {
-        switch (method) {
-            case 'get':
-                return new Promise((resolve, reject) => {
-                    let params = url.parse(this.#request.url, true);
-                    resolve(params.query);
-                });
-
-            case 'post':
-                return new Promise((resolve, reject) => {
-                    let body = '', data = '';
-                    this.#request.on('data', chunk => body += chunk.toString());
-                    this.#request.on('end', () => {
-                        resolve(this.parseData(body));
+    /**
+     * Функция получения данных от клиента по HTTP
+     * @param {string} method 
+     * Метод HTTP из которого ожидается получение данных (GET,POST,PUT)
+     * @returns 
+     */
+    getData(method = 'post') {
+        try{
+            switch (method) {
+                case 'get':
+                    return new Promise((resolve, reject) => {
+                        let params = url.parse(this.#request.url, true)
+                        resolve(params.query)
                     });
-                });
+                case 'post':
+                    return new Promise((resolve, reject) => {
+                        let body = '', data = ''
+                        this.#request.on('data', chunk => body += chunk.toString())
+                        this.#request.on('end', () => {
+                            resolve(this.parseData(body))
+                        })
+                    })
+            }
+        }catch(err){
+            Logger.error('Input.getData()',err)
         }
     }
 
+    /**
+     * Функция получения OC клиента
+     * @returns {string}
+     */
     getOs() {
         try {
             for (let [item, reg] of oses) {
@@ -285,7 +384,16 @@ export class InputHttp extends Filter {
         }
     }
 
+    /**
+     * Функция получения IP-адреса клиента
+     * @returns {string|null}
+     */
     getIp() {
-        return this.#request.headers['x-forwarded-for'];
+        try{
+            return this.#request.headers['x-forwarded-for'];
+        }catch(err){
+            Logger.error('Input.getIp()',err)
+            return null
+        }
     }
 }

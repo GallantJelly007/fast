@@ -1,10 +1,8 @@
-const routes = new Map([
-    [/^index$/, 'post/get:example/view'],
-    [/^main$/, 'post/get:example/view'],
-    [/^$/, 'post/get:example/view'],
+export default new Map([
+    [/^index$/, 'post/get:exampleController/view'],
+    [/^main$/, 'post/get:exampleController/view'],
+    [/^$/, 'post/get:exampleController/view'],
 ])
-
-export default routes
 
 /*
 Коллекция роутов обрабатывается приложением автоматически,
@@ -12,7 +10,7 @@ export default routes
 - Значение состоит из двух частей, в первой перечисляются методы доступа через слеш напр. post/get/use,
   далее через двоеточие записана пара состоящая из названия контроллера в нижнем регистре и названия метода который будет вызван в контроллере
   при этом в котроллере метод полностью должен повторять наименование из коллекции роутов,
-  То есть путь example/view, будет искать файл exampleController.js и метод actionView в нем
+  То есть путь exampleController/view, будет искать файл exampleController.js и метод view в нем
 
 Для разных условий работы и разного типа протоколов возможно использовать несколько коллекций роутов
 */ 

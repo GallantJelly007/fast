@@ -1,20 +1,33 @@
 {
-    "name": "fast",
+    "name": "fastlight",
     "version": "1.0.0",
-    "main": "index.js",
+    "description": "Mini Node.js framework",
+    "main": "./index.js",
+    "exports": "./index.js",
     "type": "module",
+    "private": true,
     "scripts": {
-        "test": "nodemon index.js",
-        "start": "node index.js"
+        "fast-init": "node ./core/scripts/initializer.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/GallantJelly007/fastlight"
     },
     "keywords": [],
-    "author": "AlexSG",
-    "license": "ISC",
-    "description": "",
+    "author": {
+        "email": "alariel007@gmail.com",
+        "name": "Alex"
+    },
+    "bugs": {
+        "url": "https://github.com/GallantJelly007/fastlight/issues",
+        "email": "alariel007@gmail.com"
+    },
+    "license": "MIT",
     "dependencies": {
         "nodemailer": "^6.7.3",
         "nunjucks": "^3.2.3",
         "pg": "^8.7.3",
+        "timelex": "^1.0.1",
         "ws": "^8.13.0"
     }
 }

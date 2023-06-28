@@ -1,9 +1,19 @@
 //@ts-check
 import * as fs from 'fs'
-import Time from './time.js'
-import CONFIG from '../settings/config.js'
+import Time from 'timelex'
 
 export default class Logger{
+
+    static #CONFIG;
+    
+    static async setConfig(pathToConfig){
+        try{
+            Logger.#CONFIG = (await import(pathToConfig)).default
+        }catch(error){
+            console.error(error)
+        }
+    }
+
     /**
      * Базовый метод вывода для логера
      * @param {string} name 
@@ -21,8 +31,8 @@ export default class Logger{
             }catch(err){
                 textObj = obj&&obj!=null?obj.toString():''
             }
-            if(!fs.existsSync(CONFIG.ROOT+'/log')){
-                fs.mkdir(CONFIG.ROOT+'/log',755,err=>{
+            if(!fs.existsSync(Logger.#CONFIG.ROOT+'/log')){
+                fs.mkdir(Logger.#CONFIG.ROOT+'/log',755,err=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })
@@ -30,18 +40,18 @@ export default class Logger{
             let time = new Time()
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
-            if(!fs.existsSync(CONFIG.ROOT+`/log/${fileName}`)){
-                fs.writeFile(CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
+            if(!fs.existsSync(Logger.#CONFIG.ROOT+`/log/${fileName}`)){
+                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })
             }else{
-                fs.appendFile(CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
+                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`,(err)=>{
                     if(err!=null) reject(err)
                     else resolve(true)
                 })
             } 
-            if(CONFIG.DEBUG)
+            if(Logger.#CONFIG.DEBUG)
                 console.log(color, `${name.toUpperCase()}:\n`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`)
         })
     }
@@ -81,7 +91,7 @@ export default class Logger{
     /**
      * Метод для вывода ошибки в файл и консоль (при условии что CONFIG.DEBUG = true)
      * @param {string} name 
-     * Имя модуля или приложения откуда вызывается logger
+     * Название (функции, модуля, и др. информация) откуда вызывается logger
      * @param {Error} err 
      * Объект данных (необязательно)
      * @param {string} url 
@@ -90,8 +100,8 @@ export default class Logger{
      */
     static error(name,err,url=''){
         return new Promise((resolve,reject)=>{
-            if(!fs.existsSync(CONFIG.ROOT+'/log')){
-                fs.mkdir(CONFIG.ROOT+'/log',755,err=>{
+            if(!fs.existsSync(Logger.#CONFIG.ROOT+'/log')){
+                fs.mkdir(Logger.#CONFIG.ROOT+'/log',755,err=>{
                     if(err!=null)reject(err) 
                     else resolve(true)
                 });
@@ -99,26 +109,24 @@ export default class Logger{
             let time = new Time()
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
-            if(!fs.existsSync(CONFIG.ROOT+`/log/${fileName}`)){
-                fs.writeFile(CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка-${t} ${url!=''?`, URL: ${url}`:''}: ${err.name} / ${err.message}--------------------------------------------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+            if(!fs.existsSync(Logger.#CONFIG.ROOT+`/log/${fileName}`)){
+                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                     else resolve(true)
                 })
             }else{
-                fs.appendFile(CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка-${t} ${url!=''?`, URL: ${url}`:''}: ${err.name} / ${err.message}--------------------------------------------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                     else resolve(true)
                 })
             } 
-            if(CONFIG.DEBUG)
-                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nError: ${err.name} / ${err.message}${url!=''?`\nURL: ${url}\n`:''}-----------------------------------------------------------------\n${err.stack}\n-----------------------------------------------------------------\n\n`)
+            if(Logger.#CONFIG.DEBUG)
+                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n-----------------------------------------------------------------\n\n`)
         })
     }
 }
 
 export class UrlError extends Error{
-    url
-
     constructor(message,url){
         super(message)
         this.url=url

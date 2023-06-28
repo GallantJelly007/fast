@@ -14,160 +14,81 @@
  */
 
 
-import LocalStorage from './lib/storage.js';
-import Session from './lib/session.js';
-import { Router,SocketClient,HttpClient} from './lib/router.js';
-import Logger, { UrlError } from './lib/logger.js';
-import Model from './lib/model.js';
+
+
 import http from 'http'
 import https from 'https'
-import CONFIG from './settings/config.js';
 import * as WebSocket from 'ws'
 
-/** Массив основных MIME-типов */
-const mimeTypes = new Map([
-    ['.atom', 'application/atom+xml'],
-    ['.edi', 'application/EDI-X12'],
-    ['.edi', 'application/EDIFACT'],
-    ['.json', 'application/json'],
-    ['.js', 'application/javascript'],
-    ['.bin', 'application/octet-stream'],
-    ['.ogg', 'application/ogg'],
-    ['.pdf', 'application/pdf'],
-    ['.ps', 'application/postscript'],
-    ['.xml', '.application/soap+xml'],
-    ['.woff', 'application/font-woff'],
-    ['.xhtml', 'application/xhtml+xml'],
-    ['.xml', 'application/xml-dtd'],
-    ['.xml', 'application/xop+xml'],
-    ['.zip', 'application/zip'],
-    ['.gzip', 'application/gzip'],
-    ['.torrent', 'application/x-bittorrent'],
-    ['.dvi', 'application/x-tex'],
-    ['.xml', 'application/xml'],
-    ['.doc', 'application/msword'],
-    ['.docx', 'application/msword'],
-    ['.audio', 'audio/basic'],
-    ['.audio', 'audio/L24'],
-    ['.mp4', 'audio/mp4'],
-    ['.aac', 'audio/aac'],
-    ['.mp3', 'audio/mpeg'],
-    ['.ogg', 'audio/ogg'],
-    ['.oga', 'audio/vorbis'],
-    ['.wma', 'audio/x-ms-wma'],
-    ['.wma', 'audio/x-ms-wax'],
-    ['.rm', 'audio/vnd.rn-realaudio'],
-    ['.wav', 'audio/vnd.wave'],
-    ['.webm', 'audio/webm'],
-    ['.gif', 'image/gif'],
-    ['.jpeg', 'image/jpeg'],
-    ['.jpg', 'image/jpeg'],
-    ['.jpe', 'image/jpeg'],
-    ['.jpeg', 'image/pjpeg'],
-    ['.jpg', 'image/pjpeg'],
-    ['.jpe', 'image/pjpeg'],
-    ['.png', 'image/png'],
-    ['.svg', 'image/svg+xml'],
-    ['.tiff', 'image/tiff'],
-    ['.ico', 'image/vnd.microsoft.icon'],
-    ['.ico', 'image/x-icon'],
-    ['.wbmp', 'image/vnd.wap.wbmp'],
-    ['.webp', 'image/webp'],
-    ['.http', 'message/http'],
-    ['.xml', 'message/imdn+xml'],
-    ['.txt', 'message/partial'],
-    ['.mht', 'message/rfc822'],
-    ['.mhtml', 'message/rfc822'],
-    ['.eml', 'message/rfc822'],
-    ['.mime', 'message/rfc822'],
-    ['.example', 'model/example'],
-    ['.igs', 'model/iges'],
-    ['.iges', 'model/iges'],
-    ['.msh', 'model/mesh'],
-    ['.mesh', 'model/mesh'],
-    ['.silo', 'model/mesh'],
-    ['.wrl', 'model/vrml'],
-    ['.vrml', 'model/vrml'],
-    ['.x3d', 'model/x3d+binary'],
-    ['.x3d', 'model/x3d+vrml'],
-    ['.x3d', 'model/x3d+xml'],
-    ['.cmd', 'text/cmd'],
-    ['.css', 'text/css'],
-    ['.csv', 'text/csv'],
-    ['.html', 'text/html'],
-    ['.htm', 'text/html'],
-    ['.js', 'text/javascript'],
-    ['.txt', 'text/plain'],
-    ['.php', 'text/php'],
-    ['.xml', 'text/xml'],
-    ['.md', 'text/markdown'],
-    ['.manifest', 'text/cache-manifest'],
-    ['.otf','font/otf'],
-    ['.ttf','font/ttf'],
-    ['.woff','font/woff'],
-    ['.mpg', 'video/mpeg'],
-    ['.mpeg', 'video/mpeg'],
-    ['.mp4', 'video/mp4'],
-    ['.ogg', 'video/ogg'],
-    ['.mov', 'video/quicktime'],
-    ['.qt', 'video/quicktime'],
-    ['.webm', 'video/webm'],
-    ['.wmv', 'video/x-ms-wmv'],
-    ['.flv', 'video/x-flv'],
-    ['.avi', 'video/x-msvideo'],
-    ['.3gp', 'video/3gpp'],
-    ['.3gpp', 'video/3gpp'],
-    ['.3g2', 'video/3gpp2'],
-    ['.3gpp2', 'video/3gpp2']
-]);
+
+import LocalStorage from './lib/storage.mjs'
+import Session from './lib/session.mjs'
+import { Router } from './lib/router.mjs'
+import { SocketClient } from './lib/middle.mjs'
+import Logger, { UrlError } from './lib/logger.mjs'
+import Model from './lib/model.mjs'
+
 
 /**
  * Класс для создания HTTP сервера
  */
-export class App {
+
+export class AppHttp {
+
     #routes
+    static #CONFIG
+    
+    static async setConfig(pathToConfig) {
+      try {
+        AppHttp.#CONFIG = (await import(pathToConfig)).default
+      } catch (error) {
+        Logger.error('AppHttp.setConfig()', error)
+      }
+    }
+
     /**
      * @param {Array<Map>} routes 
      * Массив коллекций разрешенных url адресов приложения
      */
-    constructor(routes) {
-        this.#routes = routes
-        process.on("SIGINT", () => {
-            Logger.debug('App',"process.exit(1)", "Закрытие App")
-            Session.clean()
-            LocalStorage.clean()
-            process.exit(1)
-          })
-          process.on("SIGQUIT", () => {
-            Logger.debug('App',"process.exit(3)", "Закрытие App")
-            process.exit(3)
-          })
-          process.on("SIGTERM", () => {
-            Logger.debug('App',"process.exit(15)", "Закрытие App")
-            process.exit(15)
-          })
-        try{
-            if(CONFIG.PROTOCOL!='http'&&CONFIG.PROTOCOL!='https'){
-                throw new Error('Указан неверный протокол для приложения')
-            }
-            const server = CONFIG.PROTOCOL=='http'?http:https
-            LocalStorage.init()
-            Model.init()
-            // @ts-ignore
-            server.createServer((request, response) => {
-              try{
-                let router = new Router(this.#routes)
-                router.start(request, response)
-              }catch(err){
-                if(err instanceof UrlError)
-                  Logger.error('App',err,err.url)
-                else
-                  Logger.error('App',err)
-              }
-            }).listen(CONFIG.PORT)
-        }catch(err){
-            Logger.error('App',err)
+    async start(routes){
+    
+      this.#routes = routes
+      process.on("SIGINT", () => {
+          Logger.debug('App',"Закрытие App process.exit(1)")
+          Session.clean()
+          LocalStorage.clean()
+          process.exit(1)
+      })
+      process.on("SIGQUIT", () => {
+        Logger.debug('App',"Закрытие App process.exit(3)")
+        process.exit(3)
+      })
+      process.on("SIGTERM", () => {
+        Logger.debug('App',"Закрытие App process.exit(15)")
+        process.exit(15)
+      })
+      try{
+        if(AppHttp.#CONFIG.PROTOCOL!='http' && AppHttp.#CONFIG.PROTOCOL!='https'){
+          throw new Error('Указан неверный протокол для приложения')
         }
+        const server = AppHttp.#CONFIG.PROTOCOL == 'http' ? http : https
+        LocalStorage.init()
+        Model.init()
+            // @ts-ignore
+        server.createServer((request, response) => {
+          try{
+            let router = new Router(this.#routes)
+            router.start(request, response)
+          }catch(err){
+            if(err instanceof UrlError)
+              Logger.error('App',err,err.url)
+            else
+              Logger.error('App',err)
+          }
+        }).listen(AppHttp.#CONFIG.PORT)
+      }catch(err){
+        Logger.error('App',err)
+      }
     }
 }
 
@@ -175,84 +96,91 @@ export class App {
  * Класс для создания WebSocket сервера
  */
 export class AppSocket {
-    clients = [];
-    #routes;
-    
-    /**
-     * @param {number} port 
-     * Номер порта для прослушивания
-     * @param {Array<Map>} routes 
-     * Массив коллекций разрешенных url адресов приложения
-     */
-    constructor(port,routes) {
-        const ws = new WebSocket.WebSocketServer({ port: port });
-        this.#routes = routes;
-        process.on('SIGINT', () => {
-            Logger.debug('process.exit(1)','Закрытие AppSocket')
-            Session.clean()
-            LocalStorage.clean()
-            process.exit(1)
-        });
-        process.on('SIGQUIT', () => {
-            Logger.debug('process.exit(3)','Закрытие AppSocket')
-            process.exit(3)
-        });
-        process.on('SIGTERM', () => {
-            Logger.debug('process.exit(15)','Закрытие AppSocket')
-            process.exit(15)
-        });
+  clients = [];
+  #routes;
+  static #CONFIG;
 
-        try{
-            LocalStorage.init()
-            LocalStorage.restore()
-            Model.init(true,CONFIG.ROOT + "/models/extends")
-            ws.on("connection", (client) => {
-              let newClient = new SocketClient(
-                client,
-                this.#routes
-              );
-              newClient.send({ success: 1, message: "success" });
-              this.clients.push(newClient);
-              newClient.emitter.on("close", () => {
-                for (let i = 0; i < this.clients.length; i++) {
-                  if (this.clients[i] == newClient) {
-                    this.clients.splice(i);
-                    break;
-                  }
-                }
-              });
-              newClient.emitter.on("broadcast", (data) => {
-                for (let i = 0; i < this.clients.length; i++) {
-                  if (this.clients[i] == newClient) {
-                    continue;
-                  }
-                  if (data.hasOwnProperty("type")) {
-                    if (
-                      this.clients[i].type == data.type &&
-                      data.type != null
-                    ) {
-                      this.clients[i].send(data.data);
-                    }
-                  } else {
-                    this.clients[i].send(data.data);
-                  }
-                }
-              });
-            });
-        }catch(err){
-          if(err instanceof UrlError)
-            Logger.error('AppSocket',err,err.url)
-          else
-            Logger.error('AppSocket',err)
-        }
+  static async setConfig(pathToConfig) {
+    try {
+      AppSocket.#CONFIG = (await import(pathToConfig)).default
+    } catch (error) {
+      Logger.error('AppSocket.setConfig()', error)
     }
+  }
+  /**
+   * @param {number} port 
+   * Номер порта для прослушивания
+   * @param {Array<Map>} routes 
+   * Массив коллекций разрешенных url адресов приложения
+   */
+  async start(port, routes) {
+    const ws = new WebSocket.WebSocketServer({ port: port })
+    this.#routes = routes;
+    process.on('SIGINT', () => {
+      Logger.debug('process.exit(1)', 'Закрытие AppSocket')
+      Session.clean()
+      LocalStorage.clean()
+      process.exit(1)
+    });
+    process.on('SIGQUIT', () => {
+      Logger.debug('process.exit(3)', 'Закрытие AppSocket')
+      process.exit(3)
+    });
+    process.on('SIGTERM', () => {
+      Logger.debug('process.exit(15)', 'Закрытие AppSocket')
+      process.exit(15)
+    });
 
-    /**
-     * Функция для установки действия при закрытии приложения
-     * @param {Function} func 
-     * Колбэк функция которая вызывается при закрытии приложения, в функцию будет передан массив со всеми подключенными клиентами SocketClient
-     */
-    setOnExit(func) {
-        process.on('exit', () => { func(this.clients) });
+    try {
+      LocalStorage.init()
+      Model.init(true, AppSocket.#CONFIG.ROOT + "/models/extends")
+      ws.on("connection", (client) => {
+        let newClient = new SocketClient(
+          client,
+          this.#routes
+        );
+        newClient.send({ success: 1, message: "success" })
+        this.clients.push(newClient);
+        newClient.emitter.on("close", () => {
+          for (let i = 0; i < this.clients.length; i++) {
+            if (this.clients[i] == newClient) {
+              this.clients.splice(i);
+              break;
+            }
+          }
+        });
+        newClient.emitter.on("broadcast", (data) => {
+          for (let i = 0; i < this.clients.length; i++) {
+            if (this.clients[i] == newClient) {
+              continue;
+            }
+            if (data.hasOwnProperty("type")) {
+              if (
+                this.clients[i].type == data.type &&
+                data.type != null
+              ) {
+                this.clients[i].send(data.data)
+              }
+            } else {
+              this.clients[i].send(data.data)
+            }
+          }
+        });
+      });
+    } catch (err) {
+      if (err instanceof UrlError)
+        Logger.error('AppSocket', err, err.url)
+      else
+        Logger.error('AppSocket', err)
     }
+  }
+
+  /**
+   * Функция для установки действия при закрытии приложения
+   * @param {Function} func 
+   * Колбэк функция которая вызывается при закрытии приложения, в функцию будет передан массив со всеми подключенными клиентами SocketClient
+   */
+  setOnExit(func) {
+    process.on('exit', () => { func(this.clients) });
+  }
 }

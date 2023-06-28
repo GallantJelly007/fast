@@ -1,14 +1,22 @@
 //@ts-check
 
 import * as crypto from 'crypto'
-import CONFIG from '../settings/config.js'
-import Logger from './logger.js'
+import Logger from './logger.mjs'
 
 export default class Cookie {
-    static #request;
-    static #response;
-    static #cookieData = new Map();
-    static isInit = false;
+    static #request
+    static #response
+    static #cookieData = new Map()
+    static isInit = false
+    static #CONFIG
+
+    static async setConfig(pathToConfig){
+        try{
+            Cookie.#CONFIG = (await import(pathToConfig)).default
+        }catch(error){
+            Logger.error('Cookie.setConfig()',error)
+        }
+    }
 
     /**
      * Инициализация механизма Cookie
@@ -18,9 +26,9 @@ export default class Cookie {
      * Объект HTTP ответа
      */
     static init(req, res) {
-        this.#request = req;
-        this.#response = res;
-        this.isInit = true;
+        this.#request = req
+        this.#response = res
+        this.isInit = true
     }
 
     /**
@@ -41,7 +49,7 @@ export default class Cookie {
             if(!this.isInit)
                 throw new Error('Cookie модуль не инициализирован')
             if (signed) {
-                let key = crypto.createHmac('sha256', CONFIG.COOKIE_PASS).update(name).digest('hex')
+                let key = crypto.createHmac('sha256', Cookie.#CONFIG.COOKIE_PASS).update(name).digest('hex')
                 name += '.' + key
             }
             if (value == null || value == undefined || value == '') 

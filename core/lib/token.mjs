@@ -13,13 +13,22 @@
  */
 
 import * as crypto from 'crypto'
-import LocalStorage from './storage.js'
-import Logger from './logger.js';
-import CONFIG from '../settings/config.js';
-import Time from './time.js';
+import LocalStorage from './storage.mjs'
+import Logger from './logger.mjs'
+import Time from 'timelex'
 
 /**Класс для работы с JWT и CSRF токенами */
 export default class Token {
+
+    static #CONFIG
+
+    static async setConfig(pathToConfig){
+        try{
+            Token.#CONFIG = (await import(pathToConfig)).default
+        }catch(error){
+            Logger.error('Token.setConfig()',error)
+        }
+    }
 
     #btoa(text) {
         return Buffer.from(text, 'binary').toString('base64');
@@ -197,16 +206,16 @@ export default class Token {
         try{
             let token, refreshToken
             let data = {
-                iss: CONFIG.DOMAIN,
+                iss: Token.#CONFIG.DOMAIN,
                 gen: Date.now(),
-                exp: Date.now() + ((3600 * 1000) * 24 * CONFIG.LTT),
+                exp: Date.now() + ((3600 * 1000) * 24 * Token.#CONFIG.LTT),
                 data: user
             }
             token = this.encode(data, accessKey)
             if (token == false) throw new Error('В объекте user отсутствует ключ для генерации access_token')
             if (refreshKey!='') {
                 let dateAccess = data.exp
-                data.exp = Date.now() + ((3600 * 1000) * 24 * CONFIG.LTRT)
+                data.exp = Date.now() + ((3600 * 1000) * 24 * Token.#CONFIG.LTRT)
                 let dateRefresh = data.exp
                 refreshToken = this.encode(data, refreshKey)
                 if (refreshToken == false) throw new Error('В объекте user отсутствует ключ для генерации refresh_token')
