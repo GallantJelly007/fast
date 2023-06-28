@@ -1,5 +1,5 @@
 //@ts-check
-import { AppHttp,AppSocket } from './core/app.js'
+import { AppHttp,AppSocket } from './core/app.mjs'
 import Translate from './core/lib/translate.mjs'
 import Token from './core/lib/token.mjs'
 import LocalStorage from './core/lib/storage.mjs'
@@ -15,8 +15,6 @@ import Controller from './core/lib/controller.mjs'
 import url from 'url'
 import path from 'path'
 import * as fs from 'fs'
-
-
 
 if (!fs.existsSync('./core/settings/pathes.json')) {
     throw new Error("App.start() don't load pathes.json for require config file")
@@ -64,53 +62,6 @@ export {
     Token
 }
 
-/*const __dirname = (new url.URL('.', import.meta.url).pathname).replace(/^\/|\/$/g, '')
-CONFIG.ROOT = __dirname
-const routes=[];
-routes[CONFIG.DOMAIN_NAME]= (await import('./core/settings/routes.js')).default
-const app = new App(routes);*/
-
-
-/*import Model from './core/lib/model_new.js'
-import { UserData } from './models/extends/model.extends.js'
-
-let query = UserData.request({
-    select:{
-        params:['user','user_id',{
-            sum:{
-                select:{
-                    params:['comment','title','content'],
-                    tb:UserData
-                }
-            }
-        }   
-    ]},
-    where:{
-        and:[
-            {field:'user_id',condition:'=',prepare:10},
-            {field:'user_age',condition:'=',prepare:18}
-        ],
-        or:{
-            and:[{
-                    field:'user_id',
-                    condition:'=',
-                    inner:{
-                        select:{
-                            params:['article','article_id','article_name'],
-                            tb:'article'
-                        }
-                    }
-                },
-                {field:'user_age',condition:'<',prepare:18}
-            ]
-        }
-    }
-}).query()
-
-//let query = UserData.select(['user_id','user_name',q=>{q.select('aaaaa',UserData)}]).where('age','=',10).and('name','=','asdasd').orBetween('@count',[1,10]).query()
-
-
-*/
 
 
 

@@ -1,16 +1,16 @@
 {
-    "name": "fastlight",
+    "name": "fastflash",
     "version": "1.0.0",
     "description": "Mini Node.js framework",
-    "main": "./index.js",
-    "exports": "./index.js",
+    "main": "./index.mjs",
+    "exports": "./index.mjs",
     "type": "module",
     "scripts": {
         "fast-init": "node ./core/scripts/initializer.js"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/GallantJelly007/fastlight"
+        "url": "git+https://github.com/GallantJelly007/fastlight"
     },
     "keywords": [],
     "author": {

@@ -3,54 +3,62 @@ import * as fs from 'fs'
 
 try{
     if(process.env.INIT_CWD){
-        let root = process.env.INIT_CWD
-        if (!fs.existsSync(root)) {
-            fs.mkdir(`${root}/src`,{recursive: true}, (err) => {
-                if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                if(!fs.existsSync(`${root}/src/project-config.mjs`)){
-                    fs.writeFile(`${root}/src/project-config.mjs`,createConfig(`${root}/src`),(err)=>{
-                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        let configPath = {CONFIG_PATH:`${root}/src/project-config.mjs`}
-                        fs.writeFile('../settings/pathes.json',JSON.stringify(configPath),err=>{
+        let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0]
+        let rootModule = process.env.INIT_CWD
+        if (fs.existsSync(rootProject)) {
+            console.log(rootProject)
+            if(!fs.existsSync(`${rootProject}/src`)){
+                fs.mkdir(`${rootProject}/src`,{recursive: true}, (err) => {
+                    if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                    if(!fs.existsSync(`${rootProject}/project-config.mjs`)){
+                        fs.writeFile(`${rootProject}/project-config.mjs`,createConfig(`${rootProject}/src`),(err)=>{
+                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            let configPath = {CONFIG_PATH:`${rootProject}/src/project-config.mjs`}
+                            fs.writeFile(`${rootModule}/core/settings/pathes.json`,JSON.stringify(configPath),err=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        })
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/routes`)){
+                        fs.mkdirSync(`${rootProject}/src/routes`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/public`)){
+                        fs.mkdirSync(`${rootProject}/src/public`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/storage/resources`)){
+                        fs.mkdirSync(`${rootProject}/src/storage/resources`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/controllers`)){
+                        fs.mkdirSync(`${rootProject}/src/controllers`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/controllers/ExampleController.mjs`)){
+                        fs.copyFile(`${rootModule}/core/base/ExampleController.mjs`,`${rootProject}/src/controllers/ExampleController.mjs`,(err)=>{
                             if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                         })
-                    })
-                }
-                if(!fs.existsSync(`${root}/src/routes`)){
-                    fs.mkdirSync(`${root}/src/routes`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/public`)){
-                    fs.mkdirSync(`${root}/src/public`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/storage/resources`)){
-                    fs.mkdirSync(`${root}/src/storage/resources`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/controllers`)){
-                    fs.mkdirSync(`${root}/src/controllers`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/controllers/ExampleController.mjs`)){
-                    fs.copyFile('../base/ExampleController',`${root}/src/controllers/ExampleController.mjs`,(err)=>{
-                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                    })
-                }
-                if(!fs.existsSync(`${root}/src/behaviours`)){
-                    fs.mkdirSync(`${root}/src/behaviours`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/behaviours/ExampleBehaviour.mjs`)){
-                    fs.writeFile('../base/ExampleBehaviour.mjs',`${root}/src/behaviours/ExampleBehaviour.mjs`,(err)=>{
-                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                    })
-                }
-                if(!fs.existsSync(`${root}/src/storage/sessions`)){
-                    fs.mkdirSync(`${root}/src/storage/sessions`,{recursive: true})
-                }
-                if(!fs.existsSync(`${root}/src/routes.mjs`)){
-                    fs.writeFile('../base/routes.mjs',`${root}/src/routes/routes.mjs`,(err)=>{
-                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                    })
-                }
-                
-            });
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/behaviours`)){
+                        fs.mkdirSync(`${rootProject}/src/behaviours`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/behaviours/ExampleBehaviour.mjs`)){
+                        fs.copyFile(`${rootModule}/core/base/ExampleBehaviour.mjs`,`${rootProject}/src/behaviours/ExampleBehaviour.mjs`,(err)=>{
+                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        })
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/storage/sessions`)){
+                        fs.mkdirSync(`${rootProject}/src/storage/sessions`,{recursive: true})
+                    }
+                    if(!fs.existsSync(`${rootProject}/src/routes.mjs`)){
+                        fs.copyFile(`${rootModule}/core/base/routes.mjs`,`${rootProject}/src/routes/routes.mjs`,(err)=>{
+                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        })
+                    }
+                    if(!fs.existsSync(`${rootProject}/index.js`)){
+                        fs.copyFile(`${rootModule}/core/base/index.js`,`${rootProject}/index.js`,(err)=>{
+                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        })
+                    }
+                })
+            }
         }
     }else{
         throw new Error('The command cannot be executed! The process.env.INIT_CWD property is missing')

@@ -1,7 +1,7 @@
 //@ts-check
 
 // @ts-ignore
-import { Controller } from 'fast'
+import { Controller } from 'fastflash'
 
 export default class ExampleController extends Controller{
     //Определяет тип контроллера, для Rest type='rest'
