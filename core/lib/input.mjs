@@ -1,6 +1,9 @@
 //@ts-check
 import * as url from 'url'
 import Logger from './logger.mjs'
+import * as fs from 'fs'
+import path from 'path'
+import * as crypto from 'crypto'
 
 const regular = new Map([
     ["login", /^[a-zA-Z][a-zA-Z0-9-_\.]{3,20}$/],
@@ -205,7 +208,18 @@ const oses = new Map([
     ['Search engine or robot', /(nuhk)|(Googlebot)|(Yammybot)|(Openbot)|(Slurp)|(msnbot)|(Ask Jeeves\/Teoma)|(ia_archiver)/]
 ]);
 
-export class Filter {
+export class Input {
+
+    static #CONFIG
+
+    static async setConfig(pathToConfig){
+        try{
+            Input.#CONFIG = (await import(pathToConfig)).default
+        }catch(error){
+            Logger.error('Input.setConfig()',error)
+        }
+        InputHttp.setConfig(pathToConfig)
+    }
     /**
      * Валидирует данные с помощью регулярных выражений возвращает null если нет подходящего типа для проверки
      * @param {String} type 
@@ -217,75 +231,231 @@ export class Filter {
             let reg = new RegExp(`^.*${key}*$`)
             if (reg.test(type)) {
                 if (value.test(variable)) {
-                    return true;
+                    return true
                 } else {
-                    return false;
+                    return false
                 }
             }
         }
-        return null;
+        return null
     }
 
     /**
-     * Функция для парсинга входящих данных HTTP-запроса
-     * @param {string} uri 
-     * @param {boolean} hardCheck 
-     * @returns {Object} 
+     * Функция для очистки данных в объекте, массиве или строке от html тегов
+     * @param {Array|Object|String} data 
+     * @returns {Array|Object|String} 
      */
-    parseData(uri, hardCheck = false) {
-        let reg = new RegExp(/content-disposition/, 'gi')
-        if (reg.test(uri)) {
-            let obj = {}
-            let data = uri.split(/--[\w\-\_\@\#\~\(\)\[\]\\\/\*\.\,\?\^\&\+\:\;\'\"\`\$\<\>]+/)
+    stripTags(data) {
+        let reg = /(<)([\/]{0,1})[^\<\>]+(>)/g;
+        if (Array.isArray(data) && data.constructor == Array) {
             for (let i = 0; i < data.length; i++) {
-                data[i] = data[i].replace(/[\n\r\t]+/g, ';')
-                let arr = data[i].split(';')
-                if (arr.length > 1) {
-                    let name
-                    for (let item of arr) {
-                        if (/name="([^"]+)"/.test(item)) {
-                            name = item.match(/name="([^"]+)"/)
-                            if (name != null) {
-                                name = name[1]
-                                arr.pop()
-                                let value = arr.pop()
-                                if (value != undefined && /^(false|true)$/i.test(value)) {
-                                    // @ts-ignore
-                                    value = value.toLowerCase() === "true" ? true : false
+                if(data[i])
+                    data[i] = data[i].toString().replace(reg, '');
+            }
+        } else if (typeof data === 'object') {
+            for (let key in data) {
+                if(Array.isArray(data[key]) || typeof data[key] === 'object')
+                    data[key] = this.stripTags(data[key])
+                else
+                    data[key] = data[key].toString().replace(reg, '')
+            }
+        } else {
+            if(data)
+                data = data.toString().replace(reg, '')
+        }
+        return data
+    }
+
+    uploadFile(headers,body){
+        return new Promise((resolve,reject)=>{
+            try{
+                let contentType = ''
+                let match = headers.match(/content-type:\s*([\w\/-]+)/i)
+                if (match) contentType = match[1]
+                let isAllow = false, ext = ''
+                for (let key of Input.#CONFIG.ALLOWED_UPLOAD_FORMATS.keys()) {
+                    if (Input.#CONFIG.ALLOWED_UPLOAD_FORMATS.get(key) == contentType) {
+                        isAllow = true
+                        ext = key
+                        break
+                    }
+                }
+                if (!isAllow)
+                    resolve(false)
+                match = headers.match(/filename="([^"]+)"/)
+                let filename = ''
+                if (match) filename = match[1]
+                if (filename != '') {
+                    ext = path.extname(filename)
+                }
+                let newName = crypto.randomUUID().split('-').join('') + ext
+                let content = Buffer.from(body.replace(/^[\n\r\t]+/, '').replace(/[\n\r\t]+$/, ''), 'binary')
+                if (!fs.existsSync(`${Input.#CONFIG.ROOT}/temp`)) {
+                    fs.mkdirSync(`${Input.#CONFIG.ROOT}/temp`, { recursive: true })
+                }
+                fs.writeFile(`${Input.#CONFIG.ROOT}/temp/${newName}`, content, (err) => {
+                    if (err) Logger.error('Input.uploadFile()', err)
+                    resolve({ filename: newName, path: `${Input.#CONFIG.ROOT}/temp/${newName}` })
+                })
+            }catch(err){
+                Logger.error('Input.uploadFile()',err)
+                resolve(false)
+            }
+        })
+    }
+
+    static async clearTemp(){
+        if(fs.existsSync(Input.#CONFIG.TMP_PATH) && fs.lstatSync(Input.#CONFIG.TMP_PATH).isDirectory()){
+            fs.readdir(Input.#CONFIG.TMP_PATH, { withFileTypes: true },(err,files)=>{
+                if(err!=null){
+                    Logger.error('Input.clearTemp()',err)
+                    return false
+                }
+                for (let file of files) {
+                    let path = `${Input.#CONFIG.TMP_PATH}/${file.name}`
+                    fs.unlink(path,()=>null)
+                }
+                return true
+            })
+        }
+    }
+    
+
+}
+
+export class InputHttp extends Input {
+
+    static #CONFIG
+    #request
+
+    static async setConfig(pathToConfig){
+        try{
+            InputHttp.#CONFIG = (await import(pathToConfig)).default
+        }catch(error){
+            Logger.error('InputHttp.setConfig()',error)
+        }
+    }
+
+    constructor(req) {
+        super();
+        this.#request = req;
+    }
+
+    /**
+     * Функция получения данных от клиента по HTTP
+     * @param {string} method 
+     * Метод HTTP из которого ожидается получение данных (GET,POST,PUT)
+     * @returns 
+     */
+    getData(method = 'post') {
+        return new Promise((resolve, reject) => {
+            let contentType = this.#request.headers['content-type']
+            try{
+                switch (method) {
+                    case 'get':
+                        let params = url.parse(this.#request.url, true)
+                        resolve(params.query)
+                        break
+                    case 'put':
+                    case 'post':
+                        let body = [], data = ''
+                        if (this.#request.headers['content-length']) {
+                            if (this.#request.headers['content-length'] / 1024 / 1024 > InputHttp.#CONFIG.MAX_POST_SIZE){
+                                Logger.debug('InputHttp.getData()', `Пользователь ${this.getIp()} превысил максимально допустимый размер передаваемых данных`)
+                                resolve({}) //возможно стоит отклонить
+                            } 
+                        }
+                        this.#request.on('data', chunk => body.push(chunk))
+                        this.#request.on('end', async () => resolve(await this.#parseData(body)))
+                        break
+                }
+            }catch(err){
+                Logger.error('Input.getData()',err)
+            }
+        })
+    }
+
+     /**
+     * Функция для парсинга входящих данных HTTP-запроса
+     * @param {Array<any>} data 
+     * @param {boolean} hardCheck 
+     * @returns {Promise<object>} 
+     */
+    async #parseData(data, contentType='', hardCheck = false) {
+        let reg = new RegExp(/content-disposition/, 'gi')
+        let fields={}
+        let files=[]
+        let uri = Buffer.concat(data).toString('binary')
+        if (reg.test(uri)) {
+            let boundaries = uri.match(/--[\w\-\_\@\#\~\(\)\[\]\\\/\*\.\,\?\^\&\+\:\;\'\"\`\$\<\>]+[\r\n]+content-disposition/gi)
+            if(boundaries){
+                let boundary = boundaries[0].replace(/[\r\n]+content-disposition/gi,'')
+                let boundaryReg = new RegExp(`${boundary}[\-]*[\r\n]*`,'g')
+                let data = uri.split(boundaryReg).filter(el => !/^\s*$/.test(el))
+                let count = 1
+                for (let segment of data) {
+                    if (/filename="([^"]+)"/.test(segment)) {
+                        let arr = segment.split(/[\r\n]{4}/).filter(el => el != '')
+                        if(arr.length>1){
+                            let headers = arr.shift()
+                            if(headers){
+                                let body = segment.replace(headers,'')
+                                let file = await this.uploadFile(headers,body)
+                                if(file) files.push(file)
+                            }
+                        }
+                    } else {
+                        let arr = segment.split(/[\r\n]{4}/).filter(el => el != '')
+                        if(arr.length){
+                            let headers = arr.shift()
+                            if(headers){
+                                let body = segment.replace(headers,'').trim()
+                                let name = ''
+                                let match = headers.match(/name="([^"]+)"/)
+                                if (match) name = match[1]
+                                if (name == '') {
+                                    name = `param${count}`
+                                    count++
                                 }
-                                if (value != undefined && /^[0-9]*[\.]?[0-9]+$/g.test(value)) {
-                                    // @ts-ignore
-                                    value = Number(value)
-                                }
-                                obj[name] = value
-                                break
+                                let value
+                                body = body.replace(/[\r\n]{2}$/,'')
+                                if (body != undefined && /^(false|true)$/i.test(body))
+                                    value = body.toLowerCase() === "true" ? true : false
+                                else if (body != undefined && /^[0-9]*[\.]?[0-9]+$/.test(body))
+                                    value = Number(body)
+                                else if (body != undefined && /^null$/i.test(body))
+                                    value = null
+                                else
+                                    value = body
+                                fields[name] = value
                             }
                         }
                     }
                 }
             }
-            return obj
+            return {fields,files}
         } else {
             let arr = uri.split("&");
-            let result = {};
             for (let item of arr) {
                 let spl = item.split("=");
                 if (spl.length == 2)
-                    result[spl[0]] = decodeURIComponent(spl[1]);
+                    fields[spl[0]] = decodeURIComponent(spl[1]);
                 else 
                     if (hardCheck) return false;
             }
-            for (let key in result) {
-                if (/^(false|true)$/i.test(result[key])) {
-                    result[key] =result[key].toLowerCase() === "true" ? true : false;
+            for (let key in fields) {
+                if (/^(false|true)$/i.test(fields[key])) {
+                    fields[key] = fields[key].toLowerCase() === "true" ? true : false;
                 }
-                if (/^[0-9]*[\.]?[0-9]+$/g.test(result[key])) {
-                    result[key] = Number(result[key])
+                if (/^[0-9]*[\.]?[0-9]+$/g.test(fields[key])) {
+                    fields[key] = Number(fields[key])
                 }
             }
-            return result
+            return {fields}
         }
     }
+
+   
 
     /**
      * Получение данных с валидацией в соответствии с регулярными выражениями
@@ -310,68 +480,10 @@ export class Filter {
     }
 
     /**
-     * Функция для очистки данных в объекте, массиве или строке от html тегов
-     * @param {(Array|Object|String)} data 
-     * @returns {(Array|Object|String)} 
-     */
-    stripTags(data) {
-        let reg = /(<)([\/]{0,1})[^\<\>]+(>)/g;
-        if (Array.isArray(data)) {
-            for (let i = 0; i < data.length; i++) {
-                data[i] = data[i].toString().replace(reg, '');
-            }
-        } else if (typeof data === 'object') {
-            for (let key in data) {
-                data[key] = data[key].toString().replace(reg, '');
-            }
-        } else {
-            data = data.toString().replace(reg, '');
-        }
-        return data;
-    }
-}
-
-export class InputHttp extends Filter {
-
-    #request;
-    constructor(req) {
-        super();
-        this.#request = req;
-    }
-
-    /**
-     * Функция получения данных от клиента по HTTP
-     * @param {string} method 
-     * Метод HTTP из которого ожидается получение данных (GET,POST,PUT)
-     * @returns 
-     */
-    getData(method = 'post') {
-        try{
-            switch (method) {
-                case 'get':
-                    return new Promise((resolve, reject) => {
-                        let params = url.parse(this.#request.url, true)
-                        resolve(params.query)
-                    });
-                case 'post':
-                    return new Promise((resolve, reject) => {
-                        let body = '', data = ''
-                        this.#request.on('data', chunk => body += chunk.toString())
-                        this.#request.on('end', () => {
-                            resolve(this.parseData(body))
-                        })
-                    })
-            }
-        }catch(err){
-            Logger.error('Input.getData()',err)
-        }
-    }
-
-    /**
      * Функция получения OC клиента
      * @returns {string}
      */
-    getOs() {
+    getOs(){
         try {
             for (let [item, reg] of oses) {
                 if (reg.test(this.#request.headers['user-agent'])) {

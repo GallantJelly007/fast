@@ -1,17 +1,22 @@
 //@ts-check
 import * as fs from 'fs'
 import Time from 'timelex'
+import PATHES from '../settings/pathes.mjs';
 
 export default class Logger{
 
-    static #CONFIG;
+    static #logFolder='';
+    static isDebug = true;
     
-    static async setConfig(pathToConfig){
-        try{
-            Logger.#CONFIG = (await import(pathToConfig)).default
-        }catch(error){
-            console.error(error)
+    static async setLogPath(pathFolder){
+        if(!fs.existsSync(pathFolder)){
+            fs.mkdirSync(pathFolder,{recursive:true})
+            return true
+        }else if(fs.lstatSync(pathFolder).isDirectory()){
+            Logger.#logFolder = pathFolder
+            return true
         }
+        return false
     }
 
     /**
@@ -24,35 +29,33 @@ export default class Logger{
      * @returns 
      */
     static #baseDebug(name,text,obj=null,url='',color){
-        return new Promise((resolve,reject)=>{
+        return new Promise(async (resolve,reject)=>{
+            if(Logger.#logFolder==''){
+                if(!PATHES.LOG_FOLDER || PATHES.LOG_FOLDER=='')
+                    reject(new Error('Не была выполнена команда инициализации, для корректной работы выполните команду'))
+                await Logger.setLogPath(PATHES.LOG_FOLDER)
+            }
             let textObj=''
             try{
                 textObj = obj&&obj!=null?JSON.stringify(obj):''
             }catch(err){
                 textObj = obj&&obj!=null?obj.toString():''
             }
-            if(!fs.existsSync(Logger.#CONFIG.ROOT+'/log')){
-                fs.mkdir(Logger.#CONFIG.ROOT+'/log',755,err=>{
-                    if(err!=null) reject(err)
-                    else resolve(true)
-                })
-            }
             let time = new Time()
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
-            if(!fs.existsSync(Logger.#CONFIG.ROOT+`/log/${fileName}`)){
-                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text} `:''}${textObj}\n`,(err)=>{
+            if(Logger.isDebug)
+                console.log(color, `${name.toUpperCase()}:\n`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`)
+            if(!fs.existsSync(`${Logger.#logFolder}/${fileName}`)){
+                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
                     if(err!=null) reject(err)
-                    else resolve(true)
                 })
             }else{
-                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text} `:''}${textObj}\n`,(err)=>{
+                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
                     if(err!=null) reject(err)
-                    else resolve(true)
                 })
             } 
-            if(Logger.#CONFIG.DEBUG)
-                console.log(color, `${name.toUpperCase()}:\n`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}: `:''}${textObj}\n`)
+            resolve(true)
         })
     }
 
@@ -99,29 +102,27 @@ export default class Logger{
      * @returns 
      */
     static error(name,err,url=''){
-        return new Promise((resolve,reject)=>{
-            if(!fs.existsSync(Logger.#CONFIG.ROOT+'/log')){
-                fs.mkdir(Logger.#CONFIG.ROOT+'/log',755,err=>{
-                    if(err!=null)reject(err) 
-                    else resolve(true)
-                });
+        return new Promise(async (resolve,reject)=>{
+            if(Logger.#logFolder==''){
+                if(!PATHES.LOG_FOLDER || PATHES.LOG_FOLDER=='')
+                    reject(new Error('Не была выполнена команда инициализации, для корректной работы выполните команду'))
+                await Logger.setLogPath(PATHES.LOG_FOLDER)
             }
             let time = new Time()
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
-            if(!fs.existsSync(Logger.#CONFIG.ROOT+`/log/${fileName}`)){
-                fs.writeFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+            if(Logger.isDebug)
+                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n-----------------------------------------------------------------\n\n`)
+            if(!fs.existsSync(`${Logger.#logFolder}/${fileName}`)){
+                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
-                    else resolve(true)
                 })
             }else{
-                fs.appendFile(Logger.#CONFIG.ROOT+`/log/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
-                    else resolve(true)
                 })
             } 
-            if(Logger.#CONFIG.DEBUG)
-                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n-----------------------------------------------------------------\n\n`)
+            resolve(true)
         })
     }
 }

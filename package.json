@@ -6,7 +6,8 @@
     "exports": "./index.js",
     "type": "module",
     "scripts": {
-        "init": "node ./core/scripts/initializer.js"
+        "init": "node -e \"import('./core/scripts/initializer.js').then(loaded=>loaded.init())\"",  
+        "load-model":"node -e \"import('./core/scripts/initializer.js').then(loaded=>loaded.init())\""
     },
     "repository": {
         "type": "git",

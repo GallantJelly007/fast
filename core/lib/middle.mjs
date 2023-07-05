@@ -6,7 +6,6 @@ import Session from './session.mjs'
 import { InputHttp } from './input.mjs'
 import Logger from './logger.mjs'
 import { RouterSocket } from './router.mjs'
-import PATHES from '../settings/pathes.mjs'
 
 import * as fs from 'fs'
 import * as nodemailer from 'nodemailer'
@@ -102,30 +101,6 @@ export class Middle {
 
     }
 
-    /**
-     * @async
-     * @param {String} pathFile 
-     * Путь до HTML-шаблона
-     * @param {Object} param 
-     * Объект с параметрами которые используется для подстановки в шаблон
-     * @returns {Promise}
-     * @desc Рендерит HTML-шаблон .html и возвращает его через Promise
-     */
-
-    render(pathFile, param = null) {
-        if(!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))){
-            pathFile = path.resolve(Middle.#CONFIG.ROOT,pathFile)
-        }
-        return new Promise((resolve, reject) => {
-            if (!fs.existsSync(pathFile)) reject(false)
-            param = param != null ? { domain: Middle.#CONFIG.DOMAIN, root: param } : { domain: Middle.#CONFIG.DOMAIN }
-            Nun.render(pathFile, param, (err, html) => {
-                if (err) reject(err)
-                resolve(html)
-            })
-        })
-    }
-
     jsonMapReplacer(key, value){
         if (value instanceof Map) {
             return {
@@ -157,6 +132,7 @@ export class HttpClient extends Middle {
     /** @type {Translate}*/
     translate
     input = {}
+    uploadFiles = []
     os = 'Unknown'
     ip
     #methods
@@ -184,7 +160,8 @@ export class HttpClient extends Middle {
             if (this.#useCookie) 
                 Cookie.init(this.request, this.response)
             let sesId = this.#useCookie&&Cookie.isset('ses-id')?Cookie.get('ses-id'):(input.hasOwnProperty('sesId')?input.sesId:null)
-            await Session.init(sesId, true)
+            if(HttpClient.#CONFIG.SESSION_ENABLED)
+                await Session.init(sesId, true)
             this.token = new Token()
             this.translate = new Translate()
         }catch(err){
@@ -199,21 +176,63 @@ export class HttpClient extends Middle {
      * @desc Получает входящие данные указанным методом (по умолчанию POST)  и устанавливает их в свойство input объекта, так же получает и устанавливает свойства ip и os
      */
     async getInput(method) {
-        let input = new InputHttp(this.request)
-        if (Array.isArray(method)) {
-            for (let item of method) {
-                let inputData = await input.getData(item)
-                inputData = input.stripTags(inputData)
-                this.input = Object.assign(this.input, inputData)
+        try{
+            let input = new InputHttp(this.request)
+            let methodName = this.request.method.toLowerCase()
+            let isGetData = false
+            if (Array.isArray(method)) {
+                isGetData = method.includes(methodName)
+            } else {
+                isGetData = method == methodName
             }
-        } else {
-            this.input = await input.getData(method)
+            if (isGetData) {
+                let inputData = await input.getData(methodName)
+                if(inputData.fields){
+                    inputData.fields = input.stripTags(inputData.fields)
+                    this.input = inputData.fields
+                }
+                if (inputData.files && inputData.files.length) {
+                    this.uploadFiles = inputData.files
+                }
+            }
+            this.os = input.getOs()
+            this.ip = input.getIp()
+            Logger.debug('HttpClient', "HttpClient.getInput() | Fields", this.input)
+            Logger.debug('HttpClient', "HttpClient.getInput() | Files", this.uploadFiles)
+        }catch(err){
+            Logger.error('HttpClient.getInput()',err)
         }
-        this.input = input.getUserData(this.input)
-        this.os = input.getOs()
-        this.ip = input.getIp()
-        Logger.debug('HttpClient',"HttpClient.getInput()",this.input)
         return this.input
+    }
+
+    /**
+    * @async
+    * @param {String} pathFile 
+    * Путь до HTML-шаблона
+    * @param {Object} param 
+    * Объект с параметрами которые используется для подстановки в шаблон
+    * @returns {Promise}
+    * @desc Рендерит HTML-шаблон .html и возвращает его через Promise
+    */
+    render(pathFile, param = null) {
+        if (!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))) {
+            pathFile = path.resolve(HttpClient.#CONFIG.ROOT, pathFile)
+        }
+        let host = this.request.headers['x-forwarded-host']
+        host = host ?? this.request.headers['host']
+        let domain = HttpClient.#CONFIG.DOMAIN
+        let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
+        console.log(incomingDomainReg)
+        if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
+            domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
+        return new Promise((resolve, reject) => {
+            if (!fs.existsSync(pathFile)) reject(false)
+            param = param != null ? { domain: domain, root: param } : { domain: domain }
+            Nun.render(pathFile, param, (err, html) => {
+                if (err) reject(err)
+                resolve(html)
+            })
+        })
     }
 
     /**
@@ -228,7 +247,14 @@ export class HttpClient extends Middle {
         if(!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))){
             pathFile = path.resolve(HttpClient.#CONFIG.ROOT,pathFile)
         }
-        param = param != null ? { domain: HttpClient.#CONFIG.DOMAIN, p: param } : { domain: HttpClient.#CONFIG.DOMAIN}
+        let host = this.request.headers['x-forwarded-host']
+        host = host ?? this.request.headers['host']
+        let domain = HttpClient.#CONFIG.DOMAIN
+        let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
+        console.log(incomingDomainReg)
+        if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
+            domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
+        param = param != null ? { domain: domain, p: param } : { domain: domain}
         Nun.render(pathFile, param, (err, html) => {
             if (err == null) {
                 this.response.write(html)
@@ -303,7 +329,8 @@ export class SocketClient extends Middle {
             if (data.hasOwnProperty('sesId')) {
                 sesId = data.sesId
             }
-            await Session.init(SocketClient.#CONFIG.ROOT, sesId)
+            if(SocketClient.#CONFIG.SESSION_ENABLED)
+                await Session.init(SocketClient.#CONFIG.ROOT, sesId)
             this.input = data;
             if (this.#router == null) {
                 this.#router = new RouterSocket(this.#routes)

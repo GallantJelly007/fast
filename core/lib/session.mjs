@@ -33,8 +33,8 @@ export default class Session {
     static init(sesId = null, setCookie = false) {
         return new Promise(async (resolve,reject)=>{
             try{
-                if (!fs.existsSync(Session.#CONFIG.SESSIONS_PATH)) {
-                    fs.mkdir(Session.#CONFIG.SESSIONS_PATH,{recursive: true}, (err) => {
+                if (!fs.existsSync(Session.#CONFIG.SESSION_PATH)) {
+                    fs.mkdir(Session.#CONFIG.SESSION_PATH,{recursive: true}, (err) => {
                         if (err) reject(err)
                     });
                 }
@@ -64,7 +64,7 @@ export default class Session {
         let id;
         do 
             id = crypto.randomUUID()
-        while (fs.existsSync(`${Session.#CONFIG.SESSIONS_PATH}/${id}.json`));
+        while (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${id}.json`));
         return id;
     }
 
@@ -147,20 +147,20 @@ export default class Session {
                 let obj
                 let data = Object.fromEntries(this.#sessionStorage)
                 let time = new Time()
-                if (fs.existsSync(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`)) {
-                    fs.readFile(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`, 'utf-8',(err,data)=>{
+                if (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`)) {
+                    fs.readFile(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`, 'utf-8',(err,data)=>{
                         if(err!=null) reject(err)
                         obj = JSON.parse(data);
                         obj.data = data
-                        obj.update = time
-                        fs.writeFile(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`, JSON.stringify(obj),(err)=>{
+                        obj.update = time.timestamp
+                        fs.writeFile(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`, JSON.stringify(obj),(err)=>{
                             if(err!=null) reject(err)
                             else resolve(true)
                         });
                     })
                 } else {
-                    obj = { data: data, create: time, update: time };
-                    fs.writeFile(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`, JSON.stringify(obj),(err)=>{
+                    obj = { data: data, create: time, update: time.timestamp };
+                    fs.writeFile(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`, JSON.stringify(obj),(err)=>{
                         if(err!=null) reject(err)
                         else resolve(true)
                     });
@@ -179,8 +179,8 @@ export default class Session {
     static close() {
         return new Promise((resolve,reject)=>{
             try{
-                if (fs.existsSync(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`)) {
-                    fs.unlink(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`,()=>{
+                if (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`)) {
+                    fs.unlink(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`,()=>{
                         this.#sessionStorage = new Map();
                         this.#sesId = this.genId();
                         resolve(true)
@@ -200,13 +200,13 @@ export default class Session {
     static clean() {
         return new Promise((resolve,reject)=>{
             try{
-                if (fs.existsSync(Session.#CONFIG.SESSIONS_PATH)) {
-                    fs.readdir(Session.#CONFIG.SESSIONS_PATH, { withFileTypes: true },(err,files)=>{
+                if (fs.existsSync(Session.#CONFIG.SESSION_PATH)) {
+                    fs.readdir(Session.#CONFIG.SESSION_PATH, { withFileTypes: true },(err,files)=>{
                         if(err!=null) reject(err)
                         for (let file of files) {
-                            let path = `${Session.#CONFIG.SESSIONS_PATH}/${file.name}`
+                            let path = `${Session.#CONFIG.SESSION_PATH}/${file.name}`
                             let obj = JSON.parse(fs.readFileSync(path, 'utf-8'))
-                            if (new Date(Date.now() - obj.update).getHours() > Session.#CONFIG.SESSION_CLEAN_TIME) {
+                            if (new Time(obj.update).minutesBetween(new Time()) > Session.#CONFIG.SESSION_STALE_TIME) {
                                 fs.unlinkSync(path)
                             }
                         }
@@ -226,8 +226,8 @@ export default class Session {
     static #restore() {
         return new Promise((resolve,reject)=>{
             try{
-                if (fs.existsSync(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`)) {
-                    fs.readFile(`${Session.#CONFIG.SESSIONS_PATH}/${this.#sesId}.json`, 'utf-8',(err,data)=>{
+                if (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`)) {
+                    fs.readFile(`${Session.#CONFIG.SESSION_PATH}/${this.#sesId}.json`, 'utf-8',(err,data)=>{
                         if(err) reject(err)
                         let obj = JSON.parse(data)
                         this.#sessionStorage = new Map(Object.entries(obj.data));

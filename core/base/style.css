@@ -1,0 +1,56 @@
+:root{
+	font-family: "Consolas"
+}
+*,::after,::before{
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+html,body{
+	height: 100%;
+	overflow: hidden;
+}
+body{
+	display:flex;
+	justify-content: center;
+	align-items: center;
+}
+h1{
+	font-weight: bold;
+	font-size: 4rem;
+	color: #fff;
+}
+header{
+	height:100%;
+	width:100%;
+	display:flex;
+	flex-direction:column;
+	justify-content: center;
+	align-items: center;
+	background: linear-gradient(135deg,#225caa,#223c8a,#823c3a,#a23c5a,#ff413a,#bea815,#227a44,#115a33,#223c5a,#225caa,#223c8a);
+	animation: header 25s infinite ease-in-out;
+	background-size: 2200% 2200%;
+}
+header>p{
+	color:white;
+	font-weight: bold;
+	font-size: 1.2rem;
+	margin-top: 0.5rem;
+	text-align:center;
+	margin-left: 1rem;
+	margin-right: 1rem;
+}
+.delimiter{
+	width: 24rem;
+	border:none;
+	height:2px;
+	background-color: #fff;
+}
+@keyframes header{
+	from {
+		background-position: 0% 0%;
+	}
+	to {
+		background-position: 94% 94%;
+	}
+}

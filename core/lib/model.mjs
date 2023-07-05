@@ -58,12 +58,7 @@ export default class Model {
                 }
                 let columns = await Model.#getTableInfo()
                 let table=null
-                let pathInfo = modelCreateFolder.split(/[\/\\]/)
-                let path=''
-                for(let i=0;i<pathInfo.length;i++){
-                    path+='../'
-                }
-                let script = `import Model from "${path}core/lib/model.js"\n`
+                let script = `import Model from 'fastflash'\n`
                 for(let col of columns){
                     if(table==null||col.table_name!=table){
                         script+=table!=null?'\n}\n\n':''
@@ -78,12 +73,12 @@ export default class Model {
                     script+=`\n   ${NamingCase.toNaming(col.column_name,naming.propNamingType)} = null`
                 }
                 script+=`\n}`
-                fs.open(`${modelCreateFolder}/model.extends.js`, 'w', (err) => {
+                fs.open(`${modelCreateFolder}/model.extends.mjs`, 'w', (err) => {
                     if(err) {
                         Logger.error('Model.init() fs.open',err)
                         return false
                     }
-                    fs.writeFile(`${modelCreateFolder}/model.extends.js`,script,err=>{
+                    fs.writeFile(`${modelCreateFolder}/model.extends.mjs`,script,err=>{
                         if(err) {
                             Logger.error('Model.init() fs.writeFile',err)
                             return false

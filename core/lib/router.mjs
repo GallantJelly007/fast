@@ -75,6 +75,10 @@ export class Router {
         let isCheck = false, isStatic = false
         try {
             let path = request.url.toString()
+            let ref = request.headers['x-forwarded-host']
+            ref = ref ?? request.headers['host']
+            if(Router.#CONFIG.DEBUG)
+                Logger.debug('ROUTER',`Input Request: ${ref}${path}`)
             path = path.startsWith('/') ? path.substring(1, path.length) : path
             path = path.endsWith('/') ? path.substring(0, path.length - 1) : path
             path = decodeURI(path)
@@ -99,8 +103,6 @@ export class Router {
                 }
             }
             if (!isStatic) {
-                let ref = request.headers['x-forwarded-host']
-                ref = ref ?? request.headers['host']
                 ref = ref.replace(/\:[0-9]*/,'')
                 let routes = null
                 for (let key in this.#routes) {
@@ -139,8 +141,8 @@ export class Router {
                         }
                         let methods = route[0].split('/')
                         route = route[1].split('/')
-                        let path1 = `${Router.#CONFIG.CONTROLLERS_PATH}/${route[0]}.mjs`
-                        let path2 = `${Router.#CONFIG.CONTROLLERS_PATH}/${route[0]}.js`
+                        let path1 = `${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.mjs`
+                        let path2 = `${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.js`
                         let controllerPath = ''
                         if (fs.existsSync(path1)) {
                             controllerPath = path1
@@ -150,7 +152,7 @@ export class Router {
                             }else{
                                 response.statusCode = 404
                                 response.end()
-                                throw new Error('Не найден контроллер для запроса, проверьте переменную CONTROLLERS_PATH в файле конфигурации и файл с роутами')
+                                throw new Error('Не найден контроллер для запроса, проверьте переменную CONTROLLER_PATH в файле конфигурации и файл с роутами')
                             }
                         }
                         route.shift()
@@ -202,7 +204,6 @@ export class Router {
         } catch (err) {
             Logger.error('Router',err, request.url.toString());
         }
-
     }
 }
 
@@ -221,7 +222,6 @@ export class RouterSocket {
     constructor(routes) {
         this.#routes = routes
     }
-
 
     async start(client) {
         try {

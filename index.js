@@ -9,19 +9,22 @@ import { Router,RouterSocket,RouterStatic } from './core/lib/router.mjs'
 import { HttpClient, SocketClient, Middle } from './core/lib/middle.mjs'
 import Model from './core/lib/model.mjs'
 import Logger from './core/lib/logger.mjs'
-import { InputHttp,Filter } from './core/lib/input.mjs'
+import { InputHttp, Input } from './core/lib/input.mjs'
 import Controller from './core/lib/controller.mjs'
+import TaskManager from './core/lib/task-manager.mjs'
 import PATHES from './core/settings/pathes.mjs'
 
 import url from 'url'
 
-if(!PATHES.CONFIG_PATH){
+if(!PATHES.CONFIG_PATH || PATHES.CONFIG_PATH == ''){
     throw new Error("App.start() pathes.mjs doesn't contain CONFIG_PATH")
 }
 
 let pathConfig = url.pathToFileURL(PATHES.CONFIG_PATH).href
 
-Logger.setConfig(pathConfig)
+let CONFIG = (await import(pathConfig)).default
+Logger.isDebug = CONFIG.DEBUG
+
 AppHttp.setConfig(pathConfig)
 AppSocket.setConfig(pathConfig)
 Translate.setConfig(pathConfig)
@@ -29,6 +32,7 @@ Token.setConfig(pathConfig)
 LocalStorage.setConfig(pathConfig)
 Session.setConfig(pathConfig)
 Cookie.setConfig(pathConfig)
+Input.setConfig(pathConfig)
 Router.setConfig(pathConfig)
 RouterSocket.setConfig(pathConfig)
 RouterStatic.setConfig(pathConfig)
@@ -51,9 +55,10 @@ export {
     Session,
     Cookie,
     InputHttp,
-    Filter,
+    Input,
     Translate,
-    Token
+    Token,
+    TaskManager
 }
 
 

@@ -15,7 +15,7 @@ export default class ExampleController extends Controller{
     //Все функции контроллера ассинхронные, Должны возвращать результат true- при успешном выполнении и false при неуспешном? А перед эти отправлять рендер или результат пользователю
     async view(app){
         try{
-            app.view('./src/views/example.html')
+            app.view('./views/example.html')
             return true
         }catch(err){
             throw err

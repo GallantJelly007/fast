@@ -1,88 +1,96 @@
 //@ts-check
 import * as fs from 'fs'
 
-try{
-    if(process.env.INIT_CWD){
-        let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0].replace(/[\\]+/g,'/')
-        let rootModule = process.env.INIT_CWD.replace(/[\\]+/g,'/')
-        console.log(rootProject)
-        console.log(rootModule)
-        if (fs.existsSync(rootProject)) {
-            console.log(rootProject)
-            if(!fs.existsSync(`${rootProject}/src`)){
-                fs.mkdir(`${rootProject}/src`,{recursive: true}, (err) => {
-                    if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                    if(!fs.existsSync(`${rootProject}/project-config.mjs`)){
-                        fs.writeFile(`${rootProject}/project-config.mjs`,createConfig({
-                            root:`${rootProject}/src`,
-                            controllersPath:`${rootProject}/src/controllers`,
-                            storagePath:`${rootProject}/src/storage`,
-                            sessionsPath:`${rootProject}/src/storage/sessions`
-                        }),(err)=>{
+export function init(){
+    try{
+        if(process.env.INIT_CWD){
+            let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0].replace(/[\\]+/g,'/')
+            let rootModule = process.env.INIT_CWD.replace(/[\\]+/g,'/')
+            if (fs.existsSync(rootProject)) {
+                if(!fs.existsSync(`${rootProject}/src`)){
+                    fs.mkdir(`${rootProject}/src`,{recursive: true}, (err) => {
+                        if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        if(!fs.existsSync(`${rootProject}/project-config.mjs`)){
+                            fs.writeFile(`${rootProject}/project-config.mjs`,createConfig({
+                                root:`${rootProject}/src`,
+                                controllerPath:`${rootProject}/src/controllers`,
+                                storagePath:`${rootProject}/src/storage`,
+                                sessionPath:`${rootProject}/src/storage/sessions`,
+                                localePath:`${rootProject}/src/storage/resources/locales`,
+                                tmpPath:`${rootProject}/src/temp`
+                            }),(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        fs.writeFile(`${rootModule}/core/settings/pathes.mjs`,createPathes(rootModule,`${rootProject}/project-config.mjs`,`${rootProject}/log`),err=>{
                             if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                         })
-                    }
-                    fs.writeFile(`${rootModule}/core/settings/pathes.mjs`,createPathes(rootModule,`${rootProject}/project-config.mjs`),err=>{
-                        if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                        if(!fs.existsSync(`${rootProject}/src/routes`)){
+                            fs.mkdirSync(`${rootProject}/src/routes`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/public/css`)){
+                            fs.mkdirSync(`${rootProject}/src/public/css`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/views`)){
+                            fs.mkdirSync(`${rootProject}/src/views`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/storage/resources`)){
+                            fs.mkdirSync(`${rootProject}/src/storage/resources`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/controllers`)){
+                            fs.mkdirSync(`${rootProject}/src/controllers`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/controllers/ExampleController.mjs`)){
+                            fs.copyFile(`${rootModule}/core/base/ExampleController.mjs`,`${rootProject}/src/controllers/ExampleController.mjs`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/behaviours`)){
+                            fs.mkdirSync(`${rootProject}/src/behaviours`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/behaviours/ExampleBehaviour.mjs`)){
+                            fs.copyFile(`${rootModule}/core/base/ExampleBehaviour.mjs`,`${rootProject}/src/behaviours/ExampleBehaviour.mjs`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/storage/sessions`)){
+                            fs.mkdirSync(`${rootProject}/src/storage/sessions`,{recursive: true})
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/routes.mjs`)){
+                            fs.copyFile(`${rootModule}/core/base/routes.mjs`,`${rootProject}/src/routes/routes.mjs`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        if(!fs.existsSync(`${rootProject}/index.js`)){
+                            fs.copyFile(`${rootModule}/core/base/index.js`,`${rootProject}/index.js`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/views/example.html`)){
+                            fs.copyFile(`${rootModule}/core/base/example.html`,`${rootProject}/src/views/example.html`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
+                        if(!fs.existsSync(`${rootProject}/src/public/css/style.css`)){
+                            fs.copyFile(`${rootModule}/core/base/style.css`,`${rootProject}/src/public/css/style.css`,(err)=>{
+                                if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
+                            })
+                        }
                     })
-                    if(!fs.existsSync(`${rootProject}/src/routes`)){
-                        fs.mkdirSync(`${rootProject}/src/routes`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/public`)){
-                        fs.mkdirSync(`${rootProject}/src/public`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/views`)){
-                        fs.mkdirSync(`${rootProject}/src/views`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/storage/resources`)){
-                        fs.mkdirSync(`${rootProject}/src/storage/resources`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/controllers`)){
-                        fs.mkdirSync(`${rootProject}/src/controllers`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/controllers/ExampleController.mjs`)){
-                        fs.copyFile(`${rootModule}/core/base/ExampleController.mjs`,`${rootProject}/src/controllers/ExampleController.mjs`,(err)=>{
-                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        })
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/behaviours`)){
-                        fs.mkdirSync(`${rootProject}/src/behaviours`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/behaviours/ExampleBehaviour.mjs`)){
-                        fs.copyFile(`${rootModule}/core/base/ExampleBehaviour.mjs`,`${rootProject}/src/behaviours/ExampleBehaviour.mjs`,(err)=>{
-                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        })
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/storage/sessions`)){
-                        fs.mkdirSync(`${rootProject}/src/storage/sessions`,{recursive: true})
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/routes.mjs`)){
-                        fs.copyFile(`${rootModule}/core/base/routes.mjs`,`${rootProject}/src/routes/routes.mjs`,(err)=>{
-                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        })
-                    }
-                    if(!fs.existsSync(`${rootProject}/index.js`)){
-                        fs.copyFile(`${rootModule}/core/base/index.js`,`${rootProject}/index.js`,(err)=>{
-                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        })
-                    }
-                    if(!fs.existsSync(`${rootProject}/src/views/example.html`)){
-                        fs.copyFile(`${rootModule}/core/base/example.html`,`${rootProject}/src/views/example.html`,(err)=>{
-                            if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
-                        })
-                    }
-                })
+                }
             }
+        }else{
+            throw new Error('The command cannot be executed! The process.env.INIT_CWD property is missing')
         }
-    }else{
-        throw new Error('The command cannot be executed! The process.env.INIT_CWD property is missing')
+    }catch(err){
+        console.error(`INIT COMMAND ERR:\n${err.stack}`)
     }
-}catch(err){
-    console.error(`INIT COMMAND ERR:\n${err.stack}`)
 }
 
 function createConfig(params){
     return `export default class CONFIG{
+        /**Путь к корневой папке проекта*/
+        static ROOT='${params.root}'
         /**Переменная для логера*/
         static DEBUG=true
         /**Наименование приложения-сайта*/
@@ -99,6 +107,8 @@ function createConfig(params){
         static MAIL_SECURE=true
         /**Порт почтового сервера*/
         static MAIL_PORT=465
+        /**Включить использование моделей для подключения к БД
+        static MODEL_ENABLED = true
         /**Имя БД*/
         static DB_NAME='up'
         /**Пользователь БД*/
@@ -113,42 +123,54 @@ function createConfig(params){
         static PORT=3003
         /**Порт для WEBSOCKET сервера*/
         static PORT_SOCKET=3004
+        /**Доменное имя без протокола*/
+        static DOMAIN_NAME='localhost'
+        /**Используемый протокол http|https*/
+        static PROTOCOL = 'http'
+        /**Протокол для websocket*/
+        static PROTOCOL_SOCKET='ws'
+        /**Полное доменное имя с протоколом*/
+        static DOMAIN = this.PROTOCOL+'://'+this.DOMAIN_NAME
+        /**Указывать ли порт в адресе домена*/
+        static SPECIFY_PORT = true
+        /**Включить мехнизм Cookie*/
+        static COOKIE_ENABLED = true
         /**Ключ для подписи Cookie*/
         static COOKIE_PASS='*********'
         /**Переменная для использования Secure куки(только для https)*/
         static COOKIE_SECURE=false
         /**Переменная для включения подписей куки*/
         static COOKIE_SIGN=false
-        /**Доменное имя без протокола*/
-        static DOMAIN_NAME='localhost'
-        /**Протокол для websocket*/
-        static PROTOCOL_SOCKET='ws'
-        /**Путь к корневой папке проекта*/
-        static ROOT='${params.root}'
-        /**Используемый протокол http|https*/
-        static PROTOCOL = 'http'
-        /**Полное доменное имя с протоколом*/
-        static DOMAIN = this.PROTOCOL+'://'+this.DOMAIN_NAME
         /**Кол-во дней жизни access токена*/
         static LTT=3
         /**Кол-во дней жизни refresh токена*/
         static LTRT=30
+        /**Путь для хранения временных файлов*/
+        static TMP_PATH = '${params.tmpPath}'
+        /**Интервал очистки временных файлов в минутах*/
+        static TMP_CLEAN_INTERVAL = 1440
         /**Переменная для включения статического перевода, для правильной работы нужны файлы локализации и установленныне переменные LOCALE_PATH и LOCALE*/
         static IS_ON_STATIC_TRANSLATE=true;
         /**Путь к папке с файлами локализации*/
-        static LOCALE_PATH = 'storage/resources/locales'
+        static LOCALE_PATH = '${params.localePath}'
         /**Путь к папке с контроллерами*/
-        static CONTROLLERS_PATH='${params.controllersPath}'
-        /**Стандартный язык локализации*/
+        static CONTROLLER_PATH='${params.controllerPath}'
+        /**Включить локальное хранилище*/
+        static STORAGE_ENABLED = true
+        /**Путь к локальному хранилищу*/
         static STORAGE_PATH='${params.storagePath}'
         /**Стандартный язык локализации*/
         static LOCALE='ru'
+        /**Включить механизм сессий*/
+        static SESSION_ENABLED = true
         /**Путь к хранилищу сессий*/
-        static SESSIONS_PATH='${params.sessionsPath}'
-        /**Время в часах после которых сессия становится не действительной*/
-        static SESSION_CLEAN_TIME=24
+        static SESSION_PATH='${params.sessionPath}'
+        /**Время в минутах после которых сессия становится не действительной*/
+        static SESSION_STALE_TIME = 1440
+        /**Интервал в минутах для проверки и очистки сессий*/
+        static SESSION_CLEAN_INTERVAL = 120 
         /**Массив путей для статических файлов*/
-        static STATIC_PATHS = ['public']
+        static STATIC_PATHS = ['public/']
         /**Разрешенные форматы для статических файлов отправляемых клиенту в формате Map, где ключ это формат а значение MIME-тип*/
         static ALLOWED_STATIC_FORMATS=new Map([
             ['.png','image/png'],
@@ -168,10 +190,8 @@ function createConfig(params){
             ['.jpg','image/jpeg'],
             ['.jpeg','image/jpeg'],
         ])
-        /**Ограничение максимального размера файлов в MB*/
-        static MAX_FILE_SIZE=10 //MB
-        /** Ограничение минимального размера файлов в MB*/
-        static MIN_FILE_SIZE=0 //MB
+        /**Ограничение максимального размера входящих данных в MB*/
+        static MAX_POST_SIZE=10 //MB
         /** Наименование полей сохраняемых в сессии для ключей токенов */
         static SES_KEY_A_TOKEN_FIELD = 'keyToken'
         static SES_KEY_R_TOKEN_FIELD = 'keyRtoken'
@@ -183,9 +203,10 @@ function createConfig(params){
     }`
 }
 
-function createPathes(rootModule,configPath){
+function createPathes(rootModule,configPath,logPath){
     return `export default class PATHES{
     static ROOT_MODULE = '${rootModule}'
     static CONFIG_PATH = '${configPath}'
+    static LOG_FOLDER = '${logPath}'
 }`
 }
