@@ -25,20 +25,20 @@ let pathConfig = url.pathToFileURL(PATHES.CONFIG_PATH).href
 let CONFIG = (await import(pathConfig)).default
 Logger.isDebug = CONFIG.DEBUG
 
-AppHttp.setConfig(pathConfig)
-AppSocket.setConfig(pathConfig)
-Translate.setConfig(pathConfig)
-Token.setConfig(pathConfig)
-LocalStorage.setConfig(pathConfig)
-Session.setConfig(pathConfig)
-Cookie.setConfig(pathConfig)
-Input.setConfig(pathConfig)
-Router.setConfig(pathConfig)
-RouterSocket.setConfig(pathConfig)
-RouterStatic.setConfig(pathConfig)
-Middle.setConfig(pathConfig)
-Model.setConfig(pathConfig)
-Controller.setConfig(pathConfig)
+await AppHttp.setConfig(pathConfig)
+await AppSocket.setConfig(pathConfig)
+await Translate.setConfig(pathConfig)
+await Token.setConfig(pathConfig)
+await LocalStorage.setConfig(pathConfig)
+await Session.setConfig(pathConfig)
+await Cookie.setConfig(pathConfig)
+await Input.setConfig(pathConfig)
+await Router.setConfig(pathConfig)
+await RouterSocket.setConfig(pathConfig)
+await RouterStatic.setConfig(pathConfig)
+await Middle.setConfig(pathConfig)
+await Model.setConfig(pathConfig)
+await Controller.setConfig(pathConfig)
 
 export {
     AppHttp,

@@ -112,13 +112,13 @@ export default class Logger{
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
             if(Logger.isDebug)
-                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n-----------------------------------------------------------------\n\n`)
+                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n-----------------------------------------------------------------\n\n`)
             if(!fs.existsSync(`${Logger.#logFolder}/${fileName}`)){
-                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                 })
             }else{
-                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err.name})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err.stack}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                 })
             } 

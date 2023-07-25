@@ -12,6 +12,12 @@ export default class Session {
     static #sesId;
     static isStart = false;
     static #CONFIG;
+    static #csrfToken
+    static #csrfCreate
+
+    static get csrfToken(){
+        return this.#csrfToken
+    }
 
     static async setConfig(pathToConfig){
         try{
@@ -46,9 +52,12 @@ export default class Session {
                 }
                 if (setCookie) 
                     Cookie.set('ses-id', this.#sesId)
-                if (!this.isset('csrf_key')) 
-                    this.set('csrf_key', Session.hash(20, 'all') + this.#sesId)
-                this.isStart = true;
+                if (!this.isset('csrf_key')) {
+                    let csrfKey = Session.hash(20, 'all')
+                    this.set('csrf_key', csrfKey)
+                    this.#csrfToken = this.genCsrf(csrfKey)
+                }
+                this.isStart = true
                 resolve(true)
             }catch(err){
                 reject(err)
@@ -58,30 +67,72 @@ export default class Session {
 
     /**
      * Функция для генерации валидного идентификатора сессии
-     * @returns {string}
+     * @returns {string|undefined}
      */
     static genId() {
-        let id;
-        do 
-            id = crypto.randomUUID()
-        while (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${id}.json`));
-        return id;
-    }
-
-    /*static genCsrf() {
-        let sign = crypto.createHash('sha256').update(this.get('csrf_key')).digest('hex');
-        return sign;
-    }
-
-    static verifyCsrf(key) {
-        if (this.isStart) {
-            let sign = crypto.createHash('sha256').update(this.get('csrf_key')).digest('hex');
-            if (sign != key) return false;
-            else return true;
-        } else {
-            return false;
+        try{
+            let id
+            do 
+                id = crypto.randomUUID()
+            while (fs.existsSync(`${Session.#CONFIG.SESSION_PATH}/${id}.json`))
+            return id
+        }catch(err){
+            Logger.error('Session.genId()',err)
         }
-    }*/
+    }
+
+    /**
+     * Функция для генерации нового CSRF-токена
+     * @param {string} csrfKey 
+     * Ключ для подписи токена
+     * @returns {string|undefined}
+     * Возвращает новый CSRF-токен
+     */
+    static genCsrf(csrfKey) {
+        try{
+            let time = new Time()
+            this.#csrfCreate = time.timestamp
+            let data = {
+                id: this.#sesId,
+                create: time.timestamp
+            }
+            return crypto.createHmac('sha512', csrfKey).update(JSON.stringify(data)).digest('hex')
+        }catch(err){
+            Logger.error('Session.genCsrf()',err)
+        }
+    }
+
+    /**
+     * Функция для проверки CSRF-токена
+     * @param {string} token 
+     * Проверяемый CSRF-токен
+     * @returns {boolean|undefined}
+     * Возвращает логический результат, true - если токен действителен
+     */
+    static verifyCsrf(token) {
+        try{
+            if (this.isStart) {
+                if(this.isset('csrf_key')){
+                    let key = this.get('csrf_key')
+                    let data = {
+                        id:this.#sesId,
+                        create:this.#csrfCreate
+                    }
+                    if(key!=null){
+                        let sign = crypto.createHmac('sha512', key).update(JSON.stringify(data)).digest('hex')
+                        if (token != sign) return false
+                        else return true
+                    }
+                    return false
+                }
+                return false
+            } else {
+                return false
+            }
+        }catch(err){
+            Logger.error('Session.verifyCsrf()',err)
+        }
+    }
 
     /**
      * Функция для установки и сохранения значения в сессии
@@ -89,26 +140,33 @@ export default class Session {
      * Наименование параметра
      * @param {any} value 
      * Значение параметра
-     * @returns 
+     * @returns {Promise<boolean|undefined>}
      */
-    static set(name, value) {
-        this.#sessionStorage.set(name, value);
-        this.#save();
-        return true;
+    static async set(name, value) {
+        try{
+            this.#sessionStorage.set(name, value);
+            return this.#save()
+        }catch(err){
+            Logger.error('Session.set()',err)
+        }
     }
 
-
-
+    /**
+     * Функция для удаления значения из сессии по ключу-имени
+     * @param {string} name 
+     * Наименование параметра
+     * @returns {Promise<boolean|undefined>}
+     */
     static async unset(name) {
         try{
             if (this.#sessionStorage.has(name)) {
                 this.#sessionStorage.delete(name);
-                await this.#save();
-                return true;
+                await this.#save()
+                return true
             }
-            return false;
+            return false
         }catch(err){
-
+            Logger.error('Session.unset()',err)
         }
     }
     /**
@@ -125,16 +183,17 @@ export default class Session {
      * Функция получения значения(-й) из сессии
      * @param {string} name 
      * Наименование параметра в сессии
-     * @returns {Map<string,any>|string|null}
+     * @returns {string|null}
      */
     static get(name = '') {
-        if (name == '') return this.#sessionStorage
-        else{
-            if(this.#sessionStorage.has(name))
-                return this.#sessionStorage.get(name)
-            else 
-                return null
-        }
+        if(this.#sessionStorage.has(name))
+            return this.#sessionStorage.get(name)
+        else 
+            return null
+    }
+
+    static getAll(){
+        return this.#sessionStorage
     }
 
     /**
@@ -190,7 +249,6 @@ export default class Session {
                 reject(err)
             }
         })
-
     }
 
     /**

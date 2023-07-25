@@ -1,5 +1,8 @@
 //@ts-check
 import * as fs from 'fs'
+import url from 'url'
+
+import Model from '../lib/model.mjs'
 
 export function init(){
     try{
@@ -11,13 +14,15 @@ export function init(){
                     fs.mkdir(`${rootProject}/src`,{recursive: true}, (err) => {
                         if (err) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                         if(!fs.existsSync(`${rootProject}/project-config.mjs`)){
+                            let pathes = getConfigPathes(rootProject)
                             fs.writeFile(`${rootProject}/project-config.mjs`,createConfig({
-                                root:`${rootProject}/src`,
-                                controllerPath:`${rootProject}/src/controllers`,
-                                storagePath:`${rootProject}/src/storage`,
-                                sessionPath:`${rootProject}/src/storage/sessions`,
-                                localePath:`${rootProject}/src/storage/resources/locales`,
-                                tmpPath:`${rootProject}/src/temp`
+                                root: pathes.ROOT,
+                                controllerPath:pathes.CONTROLLER_PATH,
+                                storagePath:pathes.STORAGE_PATH,
+                                sessionPath:pathes.SESSION_PATH,
+                                localePath:pathes.LOCALE_PATH,
+                                tmpPath:pathes.TMP_PATH,
+                                modelPath:pathes.MODEL_PATH
                             }),(err)=>{
                                 if(err!=null) console.error(`INIT COMMAND ERR:\n${err.stack}`)
                             })
@@ -80,10 +85,73 @@ export function init(){
                 }
             }
         }else{
-            throw new Error('The command cannot be executed! The process.env.INIT_CWD property is missing')
+            throw new Error('Command cannot be executed! The process.env.INIT_CWD property is missing')
         }
     }catch(err){
         console.error(`INIT COMMAND ERR:\n${err.stack}`)
+    }
+}
+
+export function repath(){
+    try{
+        if(process.env.INIT_CWD){
+            let rootProject = process.env.INIT_CWD.toString().split(/[\/\\]*node_modules/)[0].replace(/[\\]+/g,'/')
+            let rootModule = process.env.INIT_CWD.replace(/[\\]+/g,'/')
+            if (fs.existsSync(`${rootProject}/project-config.mjs`) && fs.existsSync(`${rootModule}/core/settings/pathes.mjs`)) {
+                let newPaths = getConfigPathes(rootProject)
+                let config = fs.readFileSync(`${rootProject}/project-config.mjs`,{encoding:'utf-8'})
+                for(let key in newPaths){
+                    if(new RegExp(`${key}`).test(config)){
+                        let reg = new RegExp(`(${key}\\s*=\\s*)([^\r\n]*)`)
+                        config = config.replace(reg,`$1'${newPaths[key]}'`)
+                    }else{
+                        config = config.replace(/({)([\W\w\s\S]*)(})/,`$1$2\n\t\t/**Auto-added repath property*/\n\t\tstatic ${key} = '${newPaths[key]}'\n$3`)
+                    }
+                    if(!fs.existsSync(newPaths[key])){
+                        fs.mkdirSync(newPaths[key],{recursive: true})
+                    }
+                }
+                fs.writeFileSync(`${rootProject}/project-config.mjs`,config)
+                fs.writeFileSync(`${rootModule}/core/settings/pathes.mjs`,createPathes(rootModule,`${rootProject}/project-config.mjs`,`${rootProject}/log`))
+                console.log('Repath success finished!')
+            }
+        }else{
+            throw new Error('Command cannot be executed! The process.env.INIT_CWD property is missing')
+        }
+    }catch(err){
+        console.error(`REPATH COMMAND ERR:\n${err.stack}`)
+    }
+}
+
+export async function modelInit(){
+    try{
+        if(fs.existsSync('./core/settings/pathes.mjs')){
+            let PATHES = (await import('../settings/pathes.mjs')).default
+            if(!PATHES.CONFIG_PATH || PATHES.CONFIG_PATH == ''){
+                throw new Error("File pathes.mjs doesn't contain CONFIG_PATH")
+            }
+            let pathConfig = url.pathToFileURL(PATHES.CONFIG_PATH).href
+            await Model.setConfig(pathConfig)
+            if(await Model.init(true)){
+                console.log('Model init success!')
+            }
+        }else{
+            throw new Error('Command cannot be executed! The file pathes.mjs is missing')
+        }
+    }catch(err){
+        console.error(`MODEL INIT COMMAND ERR:\n${err.stack}`)
+    }
+}
+
+function getConfigPathes(rootProject){
+    return {
+        ROOT:`${rootProject}/src`,
+        CONTROLLER_PATH:`${rootProject}/src/controllers`,
+        TMP_PATH: `${rootProject}/src/temp`,
+        LOCALE_PATH: `${rootProject}/src/storage/resources/locales`,
+        STORAGE_PATH: `${rootProject}/src/storage`,
+        SESSION_PATH: `${rootProject}/src/storage/sessions`,
+        MODEL_PATH: `${rootProject}/src/models`
     }
 }
 
@@ -109,15 +177,17 @@ function createConfig(params){
         static MAIL_PORT=465
         /**Включить использование моделей для подключения к БД
         static MODEL_ENABLED = true
+        /**Путь к папке для сохранения моделей*/
+        static MODEL_PATH = '${params.modelPath}'
         /**Имя БД*/
         static DB_NAME='up'
         /**Пользователь БД*/
         static DB_USER='user'
         /**Хост БД*/
-        static DB_HOST='localhost'
-        /**Пароль БД*/
         static DB_PASS='*********'
         /**Порт для БД*/
+        static DB_HOST='localhost'
+        /**Пароль БД*/
         static DB_PORT=5432
         /**Порт для HTTP сервера*/
         static PORT=3003
@@ -131,8 +201,6 @@ function createConfig(params){
         static PROTOCOL_SOCKET='ws'
         /**Полное доменное имя с протоколом*/
         static DOMAIN = this.PROTOCOL+'://'+this.DOMAIN_NAME
-        /**Указывать ли порт в адресе домена*/
-        static SPECIFY_PORT = true
         /**Включить мехнизм Cookie*/
         static COOKIE_ENABLED = true
         /**Ключ для подписи Cookie*/
@@ -173,22 +241,20 @@ function createConfig(params){
         static STATIC_PATHS = ['public/']
         /**Разрешенные форматы для статических файлов отправляемых клиенту в формате Map, где ключ это формат а значение MIME-тип*/
         static ALLOWED_STATIC_FORMATS=new Map([
-            ['.png','image/png'],
-            ['.svg','image/svg+xml'],
-            ['.jpg','image/jpeg'],
-            ['.jpeg','image/jpeg'],
-            ['.ico','image/x-icon'],
-            ['.css','text/css'],
-            ['.js','application/javascript'],
-            ['.otf','font/otf'],
-            ['.ttf','font/ttf'],
+            ['image/png', '.png'],
+            ['image/svg+xml', '.svg'],
+            ['image/jpeg', '.jpeg'],
+            ['image/x-icon', '.ico'],
+            ['text/css', '.css'],
+            ['application/javascript', '.js'],
+            ['font/otf', '.otf'],
+            ['font/ttf', '.ttf'],
         ])
         /**Разрешенные форматы для загрузки файлов на сервер в формате Map, где ключ это формат а значение MIME-тип*/
         static ALLOWED_UPLOAD_FORMATS=new Map([
-            ['.png','image/png'],
-            ['.svg','image/svg+xml'],
-            ['.jpg','image/jpeg'],
-            ['.jpeg','image/jpeg'],
+            ['image/png', '.png'],
+            ['image/svg+xml', '.svg'],
+            ['image/jpeg', '.jpeg'],
         ])
         /**Ограничение максимального размера входящих данных в MB*/
         static MAX_POST_SIZE=10 //MB

@@ -25,12 +25,16 @@ export class RouterStatic{
         path = path.startsWith('/') ? path.substring(1, path.length) : path
         path = path.endsWith('/') ? path.substring(0, path.length - 1) : path
         path = decodeURI(path)
-        for (let item of RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
+        for (let mime of RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
             for(let folder of RouterStatic.#CONFIG.STATIC_PATHS){
-                if (path.startsWith(folder) && path.endsWith(item)) {
+                let format = RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.get(mime)
+                let ext = `.${path.split('.').pop()}`
+                if(!format)
+                    continue
+                if (path.startsWith(folder) && format == ext) {
                     fs.readFile(RouterStatic.#CONFIG.ROOT + "/" + path, (err, data) => {
                         if (!err) {
-                            response.setHeader('Content-Type', RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.get(item))
+                            response.setHeader('Content-Type', mime)
                             response.end(data)
                         } else {
                             response.statusCode = 404
@@ -82,12 +86,16 @@ export class Router {
             path = path.startsWith('/') ? path.substring(1, path.length) : path
             path = path.endsWith('/') ? path.substring(0, path.length - 1) : path
             path = decodeURI(path)
-            for (let item of Router.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
-                for (let folder of Router.#CONFIG.STATIC_PATHS) {
-                    if (path.startsWith(folder) && path.endsWith(item)) {
+            for (let mime of Router.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
+                for(let folder of Router.#CONFIG.STATIC_PATHS){
+                    let format = Router.#CONFIG.ALLOWED_STATIC_FORMATS.get(mime)
+                    let ext = `.${path.split('.').pop()}`
+                    if(!format)
+                        continue
+                    if (path.startsWith(folder) && format == ext) {
                         fs.readFile(Router.#CONFIG.ROOT + "/" + path, (err, data) => {
                             if (!err) {
-                                response.setHeader('Content-Type', Router.#CONFIG.ALLOWED_STATIC_FORMATS.get(item))
+                                response.setHeader('Content-Type', mime)
                                 response.end(data)
                             } else {
                                 response.statusCode = 404
@@ -98,7 +106,7 @@ export class Router {
                         break
                     }
                 }
-                if (isStatic) {
+                if(isStatic){
                     break
                 }
             }
@@ -160,7 +168,7 @@ export class Router {
                         response.setHeader('Content-Type', 'text/html; charset=utf-8')
 
                         switch (classController.type) {
-                            case 'base': app = new HttpClient(request, response, methods)
+                            case 'base': app = new HttpClient(request, response, methods, Router.#CONFIG.COOKIE_ENABLED)
                                 break
                             case 'rest': app = new HttpClient(request, response, methods, false)
                                 break

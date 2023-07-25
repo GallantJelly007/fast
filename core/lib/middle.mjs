@@ -3,7 +3,7 @@ import Token from './token.mjs'
 import Cookie from './cookie.mjs'
 import Translate from './translate.mjs'
 import Session from './session.mjs'
-import { InputHttp } from './input.mjs'
+import { Input, InputHttp } from './input.mjs'
 import Logger from './logger.mjs'
 import { RouterSocket } from './router.mjs'
 
@@ -98,27 +98,6 @@ export class Middle {
             Logger.error('Middle',err)
             return false
         }
-
-    }
-
-    jsonMapReplacer(key, value){
-        if (value instanceof Map) {
-            return {
-                dataType: 'Map',
-                value: Array.from(value.entries()), 
-            };
-        } else {
-            return value
-        }
-    }
-
-    jsonMapReviewer(key, value) {
-        if(typeof value === 'object' && value !== null) {
-            if (value.dataType === 'Map') {
-                return new Map(value.value)
-            }
-        }
-        return value
     }
 }
 
@@ -146,7 +125,7 @@ export class HttpClient extends Middle {
         }
     }
 
-    constructor(req, res, methods ,useCookie = true) {
+    constructor(req, res, methods, useCookie = true) {
         super()
         this.request = req
         this.response = res
@@ -222,7 +201,6 @@ export class HttpClient extends Middle {
         host = host ?? this.request.headers['host']
         let domain = HttpClient.#CONFIG.DOMAIN
         let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
-        console.log(incomingDomainReg)
         if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
             domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
         return new Promise((resolve, reject) => {
@@ -251,7 +229,6 @@ export class HttpClient extends Middle {
         host = host ?? this.request.headers['host']
         let domain = HttpClient.#CONFIG.DOMAIN
         let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
-        console.log(incomingDomainReg)
         if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
             domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
         param = param != null ? { domain: domain, p: param } : { domain: domain}
@@ -268,10 +245,23 @@ export class HttpClient extends Middle {
     /**
      * 
      * @param {Object} data 
+     * Данные
+     * @param {string} encode
+     * Кодировка для преобразования в текстовый формат (по умолчанию: UTF-8)
+     * @desc Отправляет клиенту данные в текстовом формате через HTTP
+     */
+    sendText(data,encode='utf-8') {
+        this.response.write(data.toString(encode))
+        this.response.end()
+    }
+
+     /**
+     * 
+     * @param {Object} data 
      * @desc Отправляет клиенту данные в JSON формате через HTTP
      */
-    sendResponse(data) {
-        this.response.write(JSON.stringify(data,this.jsonMapReplacer))
+    sendJson(data) {
+        this.response.write(JSON.stringify(data,Input.jsonMapReplacer))
         this.response.end()
     }
 
@@ -319,25 +309,28 @@ export class SocketClient extends Middle {
         this.token = new Token()
         this.translate = new Translate()
         client.on('message', async message => {
-            let data
-            if (typeof message == 'string') {
-                data = JSON.parse(message)
-            } else {
-                data = JSON.parse(new TextDecoder().decode(message))
+            try{
+                let data
+                if (typeof message == 'string') {
+                    data = JSON.parse(message)
+                } else {
+                    data = JSON.parse(new TextDecoder().decode(message))
+                }
+                let sesId = null
+                if (data.hasOwnProperty('sesId')) {
+                    sesId = data.sesId
+                }
+                if (SocketClient.#CONFIG.SESSION_ENABLED)
+                    await Session.init(SocketClient.#CONFIG.ROOT, sesId)
+                this.input = data;
+                if (this.#router == null) {
+                    this.#router = new RouterSocket(this.#routes)
+                }
+                this.#router.start(this)
+                //client.send(new TextEncoder().encode(JSON.stringify({success:1,message:"success"})));
+            }catch(err){
+                Logger.error('SocketClient.onmessage',err)
             }
-            let sesId = null
-            if (data.hasOwnProperty('sesId')) {
-                sesId = data.sesId
-            }
-            if(SocketClient.#CONFIG.SESSION_ENABLED)
-                await Session.init(SocketClient.#CONFIG.ROOT, sesId)
-            this.input = data;
-            if (this.#router == null) {
-                this.#router = new RouterSocket(this.#routes)
-            }
-            this.#router.start(this)
-
-            //client.send(new TextEncoder().encode(JSON.stringify({success:1,message:"success"})));
         });
         client.on('close', () => {
             this.emitter.emit('close')

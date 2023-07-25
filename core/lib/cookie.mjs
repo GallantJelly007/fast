@@ -89,7 +89,7 @@ export default class Cookie {
                 throw new Error('Cookie модуль не инициализирован')
             let cookies = this.#request.headers['cookie'];
             if (cookies != undefined) {
-                let reg = new RegExp(`${name}="([\\w\\%\\[\\]\\{\\}\\#\\.\\,\\?\\$]+)"`, 'g');
+                let reg = new RegExp(`${name}="([\\w\\W]+)"`, 'g');
                 return reg.test(cookies);
             }
             return false

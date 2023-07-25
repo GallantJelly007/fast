@@ -16,7 +16,7 @@
 
 
 
-import http, { request } from 'http'
+import http from 'http'
 import https from 'https'
 import * as WebSocket from 'ws'
 import { EventEmitter } from 'events'

@@ -54,7 +54,7 @@ export default class Token {
                 segments[0] = this.#btoa(JSON.stringify(header))
                 segments[1] = this.#btoa(JSON.stringify(data))
                 let dataSign = segments[0] + "." + segments[1]
-                let sign = crypto.createHmac('sha256', String(key)).update(dataSign).digest('base64')
+                let sign = crypto.createHmac('sha512', String(key)).update(dataSign).digest('base64')
                 segments[2] = sign
                 let res = segments.join('.')
                 return encodeURIComponent(res)
@@ -114,7 +114,7 @@ export default class Token {
             let segments = decodeURIComponent(token).split(".")
             let dataSign = segments[0] + "." + segments[1]
             let sign = crypto
-              .createHmac("sha256", String(key))
+              .createHmac("sha512", String(key))
               .update(dataSign)
               .digest("base64")
             if (data.sign != sign) {
@@ -205,17 +205,18 @@ export default class Token {
     generate(user, accessKey='', refreshKey='') {
         try{
             let token, refreshToken
+            let time = new Time()
             let data = {
                 iss: Token.#CONFIG.DOMAIN,
-                gen: Date.now(),
-                exp: Date.now() + ((3600 * 1000) * 24 * Token.#CONFIG.LTT),
+                gen: time.timestamp,
+                exp: time.timestamp + ((3600 * 1000) * 24 * Token.#CONFIG.LTT),
                 data: user
             }
             token = this.encode(data, accessKey)
             if (token == false) throw new Error('В объекте user отсутствует ключ для генерации access_token')
             if (refreshKey!='') {
                 let dateAccess = data.exp
-                data.exp = Date.now() + ((3600 * 1000) * 24 * Token.#CONFIG.LTRT)
+                data.exp = time.timestamp + ((3600 * 1000) * 24 * Token.#CONFIG.LTRT)
                 let dateRefresh = data.exp
                 refreshToken = this.encode(data, refreshKey)
                 if (refreshToken == false) throw new Error('В объекте user отсутствует ключ для генерации refresh_token')
@@ -232,7 +233,7 @@ export default class Token {
 
     generateCsrf(data){
         let csrfKey = crypto.randomUUID()
-        let csrfToken = crypto.createHmac('sha256', String(csrfKey)).update(data.toString()).digest('hex')
+        let csrfToken = crypto.createHmac('sha512', String(csrfKey)).update(data.toString()).digest('hex')
         LocalStorage.set(csrfToken,{csrfKey:csrfKey,data:data.toString()})
         return csrfToken;
     }

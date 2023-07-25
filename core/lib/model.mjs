@@ -51,7 +51,8 @@ export default class Model {
                     throw new Error(`param ${key} no find in config file or empty value`)
                 }
             }
-            if(isCreateModels&&modelCreateFolder!=''){
+            if(isCreateModels){
+                modelCreateFolder = modelCreateFolder == '' ? Model.#CONFIG.MODEL_PATH : modelCreateFolder
                 modelCreateFolder = modelCreateFolder.replace(/^[\.\/]+/,'').replace(/[\/]+$/,'')
                 if(!fs.existsSync(modelCreateFolder)){
                     fs.mkdirSync(modelCreateFolder,{recursive:true})
@@ -73,24 +74,14 @@ export default class Model {
                     script+=`\n   ${NamingCase.toNaming(col.column_name,naming.propNamingType)} = null`
                 }
                 script+=`\n}`
-                fs.open(`${modelCreateFolder}/model.extends.mjs`, 'w', (err) => {
-                    if(err) {
-                        Logger.error('Model.init() fs.open',err)
-                        return false
-                    }
-                    fs.writeFile(`${modelCreateFolder}/model.extends.mjs`,script,err=>{
-                        if(err) {
-                            Logger.error('Model.init() fs.writeFile',err)
-                            return false
-                        }
-                        return true
-                    })
-                });
+                fs.writeFileSync(`${modelCreateFolder}/model.extends.mjs`,script,{encoding:'utf-8'})
+                return true
             }else{
                 return true
             }
         }catch(err){
             Logger.error('Model.init()',err)
+            return false
         }
     }
 
