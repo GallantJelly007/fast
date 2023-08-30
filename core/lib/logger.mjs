@@ -1,12 +1,12 @@
 //@ts-check
 import * as fs from 'fs'
 import Time from 'timelex'
-import PATHES from '../settings/pathes.mjs';
+import PATHES from '../settings/pathes.mjs'
 
 export default class Logger{
 
-    static #logFolder='';
-    static isDebug = true;
+    static #logFolder=''
+    static isDebug = true
     
     static async setLogPath(pathFolder){
         if(!fs.existsSync(pathFolder)){
@@ -45,13 +45,13 @@ export default class Logger{
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
             if(Logger.isDebug)
-                console.log(color, `${name.toUpperCase()}:\n`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`)
+                console.log(color, `${name}:\n`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`)
             if(!fs.existsSync(`${Logger.#logFolder}/${fileName}`)){
-                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
+                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
                     if(err!=null) reject(err)
                 })
             }else{
-                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
+                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name}:\nВывод-${t}`+(url!=''?`URL: ${url}\n`:'')+`-----------------------------------------------------------------\n${text!=''?`${text}`:''}${textObj!=''?`: ${textObj}`:''}\n`,(err)=>{
                     if(err!=null) reject(err)
                 })
             } 
@@ -112,13 +112,13 @@ export default class Logger{
             let t = time.format('${H:m:S}')
             let fileName = `log-${time.format('${D.M.Y}')}.txt`
             if(Logger.isDebug)
-                console.log('\x1b[31m%s\x1b[0m', `${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n-----------------------------------------------------------------\n\n`)
+                console.log('\x1b[31m%s\x1b[0m', `${name}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n-----------------------------------------------------------------\n\n`)
             if(!fs.existsSync(`${Logger.#logFolder}/${fileName}`)){
-                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.writeFile(`${Logger.#logFolder}/${fileName}`,`${name}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                 })
             }else{
-                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name.toUpperCase()}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
+                fs.appendFile(`${Logger.#logFolder}/${fileName}`,`${name}:\nОшибка - ${t} (${err?.name??''})\n${url!=''?`, URL: ${url}\n`:''}---------------------------STACK-TRACE---------------------------\n${err?.stack??''}\n--------------------------------------------------------------\n\n`,(err)=>{
                     if(err!=null) reject(err) 
                 })
             } 

@@ -8,12 +8,11 @@
 
 /**
  * @typedef {Object} Result
- * @property {number} success 
+ * @property {boolean} success 
  * @property {string} message 
  */
 
 import * as crypto from 'crypto'
-import LocalStorage from './storage.mjs'
 import Logger from './logger.mjs'
 import Time from 'timelex'
 
@@ -31,12 +30,12 @@ export default class Token {
     }
 
     #btoa(text) {
-        return Buffer.from(text, 'binary').toString('base64');
-    };
+        return Buffer.from(text, 'binary').toString('base64')
+    }
 
     #atob(text) {
-        return Buffer.from(text, 'base64').toString('binary');
-    };
+        return Buffer.from(text, 'base64').toString('binary')
+    }
 
     /**
      * Функция для создания токена на основе данных
@@ -62,7 +61,7 @@ export default class Token {
                 return false
             }
         }catch(err){
-            Logger.error('Token',err)
+            Logger.error('Token.encode()',err)
             return false
         } 
     }
@@ -87,7 +86,7 @@ export default class Token {
             data.sign = segments[2]
             return data
         } catch (err) {
-            Logger.error('Token',err)
+            Logger.error('Token.decode()',err)
             return false
         }
     }
@@ -103,13 +102,13 @@ export default class Token {
      */
     validate(token, key) {
         try{
-            let data = this.decode(token);
+            let data = this.decode(token)
             if (!data) {
-              return { success: 0, message: "Токен поврежден" }
+              return { success: false, message: "Токен поврежден" }
             }
             let time = new Time()
             if (data.body.exp < time.timestamp) {
-              return { success: 1, message: "Время действия токена истекло" }
+               return { success: true, message: "Время действия токена истекло" }
             }
             let segments = decodeURIComponent(token).split(".")
             let dataSign = segments[0] + "." + segments[1]
@@ -118,12 +117,12 @@ export default class Token {
               .update(dataSign)
               .digest("base64")
             if (data.sign != sign) {
-              return { success: 0, message: "Недействительный токен" };
+              return { success: false, message: "Недействительный токен" }
             }
-            return { success: 1, message: "Действительный токен" };
+            return { success: true, message: "Действительный токен" }
         }catch(err){
-            Logger.error('Token',err)
-            return { success: 0, message: "Ошибка проверки токена" };
+            Logger.error('Token.validate()',err)
+            return { success: false, message: "Ошибка проверки токена" }
         }  
     }
 
@@ -152,20 +151,16 @@ export default class Token {
                     return false
             }
             let result = this.validate(accessToken, accessKey)
-            if (result.success == 0) {
+            if (!result.success) {
                 if (refreshKey != null && refreshToken != null) {
                     let infoRefresh = this.decode(refreshToken)
-                    if(infoRefresh === false) return false;
+                    if(infoRefresh === false) return false
                     for(let key in infoAccess.body.data){
                         if (infoAccess.body.data[key] != infoRefresh.body.data[key])
                             return false
                     }
                     result = this.validate(refreshToken, refreshKey)
-                    if (result.success == 1) {
-                        return true
-                    } else {
-                        return false
-                    }
+                    return result.success
                 } else {
                     return false
                 }
@@ -173,7 +168,7 @@ export default class Token {
                 return true
             }
         } catch (err) {
-            Logger.error('Token',err)
+            Logger.error('Token.verify()',err)
             return false
         }
     }
@@ -188,17 +183,11 @@ export default class Token {
      * Ключ для создания refresh_token
      * @returns {object} 
      * {
-     *  
-     * success,
-     * 
+     *  success,
      *  accessToken,
-     * 
      *  dateAccess,
-     * 
      *  refreshToken?,
-     * 
      *  dateRefresh?,
-     * 
      * }
      * 
      */
@@ -225,30 +214,48 @@ export default class Token {
                 return { success: 1, accessToken: token, dateAccess: data.exp }
             }
         }catch(err){
-            Logger.error('Token',err)
+            Logger.error('Token.generate()',err)
             return false
         }
     }
 
-
-    generateCsrf(data){
-        let csrfKey = crypto.randomUUID()
-        let csrfToken = crypto.createHmac('sha512', String(csrfKey)).update(data.toString()).digest('hex')
-        LocalStorage.set(csrfToken,{csrfKey:csrfKey,data:data.toString()})
-        return csrfToken;
+    /**
+     * Функция для генерации нового CSRF-токена
+     * @param {string} id 
+     * Идентификатор 
+     * @param {string} csrfKey 
+     * Ключ для подписи токена
+     * @returns {Object|undefined}
+     * Возвращает новый CSRF-токен
+     */
+    static generateCsrf(id, csrfKey) {
+        try{
+            let time = new Time()
+            let data = {
+                id,
+                create: time.timestamp
+            }
+            return {csrfToken:crypto.createHmac('sha512', csrfKey).update(JSON.stringify(data)).digest('hex'), timeCreate:time.timestamp}
+        }catch(err){
+            Logger.error('Token.generateCsrf()',err)
+        }
     }
 
-
-    verifyCsrf(token,data){
-        if(LocalStorage.isset(token)){
-            let obj = LocalStorage.get(token)
-            LocalStorage.unset(token)
-            if(data.toString()==obj.data)
-                return true
-            else
-                return false
-        }else{
+    /**
+     * Функция для проверки CSRF-токена
+     * @param {string} token 
+     * Проверяемый CSRF-токен
+     * @returns {boolean|undefined}
+     * Возвращает логический результат, true - если токен действителен
+     */
+    static verifyCsrf(key, data, token) {
+        try{  
+            let sign = crypto.createHmac('sha512', key).update(JSON.stringify(data)).digest('hex')
+            return token == sign
+        }catch(err){
+            Logger.error('Token.verifyCsrf()',err)
             return false
         }
     }
+
 }

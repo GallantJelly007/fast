@@ -1,26 +1,27 @@
-:root{
+.standart_page{
 	font-family: "Consolas"
 }
-*,::after,::before{
+.standart_page *,::after,::before{
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
 }
-html,body{
+.standart_page{
 	height: 100%;
 	overflow: hidden;
 }
-body{
+.standart_body{
 	display:flex;
 	justify-content: center;
 	align-items: center;
 }
-h1{
+.standart_page_container>h1{
 	font-weight: bold;
-	font-size: 4rem;
+	font-size: 4.5rem;
 	color: #fff;
+	text-align:center;
 }
-header{
+.standart_page_header{
 	height:100%;
 	width:100%;
 	display:flex;
@@ -31,19 +32,20 @@ header{
 	animation: header 25s infinite ease-in-out;
 	background-size: 2200% 2200%;
 }
-header>p{
+.standart_page_container{
+	max-width: 50%;
+}
+.standart_page_container>p{
 	color:white;
 	font-weight: bold;
-	font-size: 1.2rem;
-	margin-top: 0.5rem;
+	font-size: 1.5rem;
 	text-align:center;
-	margin-left: 1rem;
-	margin-right: 1rem;
 }
-.delimiter{
-	width: 24rem;
+.standart_page_delimiter{
+	width: 100%;
 	border:none;
 	height:2px;
+	margin:0.5rem 0;
 	background-color: #fff;
 }
 @keyframes header{
@@ -52,5 +54,17 @@ header>p{
 	}
 	to {
 		background-position: 94% 94%;
+	}
+}
+
+@media(max-width:1023px) and (max-height:1023px){
+	:root{
+		font-size:4vmin;
+	}
+	.standart_page_container{
+		max-width:80%;
+	}
+	.standart_page_container>h1{
+		font-size:3.5rem;
 	}
 }

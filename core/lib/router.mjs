@@ -5,57 +5,21 @@ import { HttpClient } from './middle.mjs'
 
 import { EventEmitter } from 'events'
 import * as fs from 'fs'
+import * as crypto from 'crypto'
 import url from 'url'
-
-export class RouterStatic{
-
-    static #CONFIG
-
-    static async setConfig(pathToConfig){
-        try{
-            RouterStatic.#CONFIG = (await import(pathToConfig)).default
-        }catch(error){
-            Logger.error('RouterStatic.setConfig()',error)
-        }
-    }
-
-    async start(request,response){
-        let isSuccess=false
-        let path = request.url.toString()
-        path = path.startsWith('/') ? path.substring(1, path.length) : path
-        path = path.endsWith('/') ? path.substring(0, path.length - 1) : path
-        path = decodeURI(path)
-        for (let mime of RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
-            for(let folder of RouterStatic.#CONFIG.STATIC_PATHS){
-                let format = RouterStatic.#CONFIG.ALLOWED_STATIC_FORMATS.get(mime)
-                let ext = `.${path.split('.').pop()}`
-                if(!format)
-                    continue
-                if (path.startsWith(folder) && format == ext) {
-                    fs.readFile(RouterStatic.#CONFIG.ROOT + "/" + path, (err, data) => {
-                        if (!err) {
-                            response.setHeader('Content-Type', mime)
-                            response.end(data)
-                        } else {
-                            response.statusCode = 404
-                            response.end()
-                        }
-                    })
-                    isSuccess=true
-                    break
-                }
-            }
-            if(isSuccess){
-                break
-            }
-        }
-    }
-}
+import path from 'path'
+import RequestLimiter from './request-limiter.mjs'
 
 export class Router {
-    emmiter
-    #routes = {}
+    #emmiter
+    #dynamicRoutes
+    #staticRoutes
+    #limiter
     static #CONFIG
+
+    get limiter(){
+        return this.#limiter
+    }
 
     static async setConfig(pathToConfig){
         try{
@@ -65,92 +29,129 @@ export class Router {
         }
     }
 
-    constructor(routes) {
-        this.#routes = routes
-        this.emmiter = new EventEmitter()
+    /**
+     * 
+     * @param {Object} params 
+     * Объект содержащий маршруты для контроллеров и файлового доступа
+     * @param {Object|Map} params.routes
+     * Маршруты для выполнения логики и передачи данных в контроллеры
+     * @param {Object|Map} params.staticRoutes
+     * @param {RequestLimiter} [params.limiter]
+     * Статические файловые маршруты
+     */
+    constructor(params) {
+        if(params?.routes)
+            this.#dynamicRoutes = params.routes
+        if(params?.staticRoutes)
+            this.#staticRoutes = params?.staticRoutes
+        if(params?.limiter instanceof RequestLimiter)
+            this.#limiter = params.limiter
+        this.#emmiter = new EventEmitter()
     }
 
     /**
      * @param {object} request 
+     * Объект входящего запроса
      * @param {object} response 
+     * Объект ответа на входящий запрос
      * @returns 
      */
-    async start(request, response) {
-        let isCheck = false, isStatic = false
-        try {
-            let path = request.url.toString()
-            let ref = request.headers['x-forwarded-host']
-            ref = ref ?? request.headers['host']
-            if(Router.#CONFIG.DEBUG)
-                Logger.debug('ROUTER',`Input Request: ${ref}${path}`)
-            path = path.startsWith('/') ? path.substring(1, path.length) : path
-            path = path.endsWith('/') ? path.substring(0, path.length - 1) : path
-            path = decodeURI(path)
-            for (let mime of Router.#CONFIG.ALLOWED_STATIC_FORMATS.keys()) {
-                for(let folder of Router.#CONFIG.STATIC_PATHS){
-                    let format = Router.#CONFIG.ALLOWED_STATIC_FORMATS.get(mime)
-                    let ext = `.${path.split('.').pop()}`
-                    if(!format)
-                        continue
-                    if (path.startsWith(folder) && format == ext) {
-                        fs.readFile(Router.#CONFIG.ROOT + "/" + path, (err, data) => {
-                            if (!err) {
-                                response.setHeader('Content-Type', mime)
-                                response.end(data)
-                            } else {
-                                response.statusCode = 404
-                                response.end()
-                            }
-                        })
-                        isStatic = true
-                        break
+    async route(request, response) {
+        const sendFail = (message='',code=404)=>{
+            try{
+                let isPage = request.method.toLowerCase() == 'get' && /text\/html/.test(request.headers['accept'])
+                let params = isPage
+                    ? {
+                        code,
+                        pathFile: path.join(Router.#CONFIG.STATUS_PAGES_PATH, `/page${code}.html`).replace(/\\/g,'/'),
+                        type: HttpClient.RESPONSE_TYPES.HTML
                     }
-                }
-                if(isStatic){
-                    break
-                }
+                    : { code }
+                HttpClient.send(request, response, params)
+                if (message && message != '')
+                    Logger.debug('Router', message)
+            } catch (err) {
+                Logger.error('Router.route.sendFail()', err)
             }
-            if (!isStatic) {
-                ref = ref.replace(/\:[0-9]*/,'')
-                let routes = null
-                for (let key in this.#routes) {
-                    let reg = new RegExp(`^${key}$`)
-                    if (reg.test(ref)) {
-                        routes = this.#routes[key]
-                        break
-                    }
-                }
-                if (routes == null) {
-                    Logger.debug('Router','Нет совпадений доменных имен в роутах и конфигурации')
-                    response.statusCode = 404
-                    response.end()
+        }
+        try {
+            if(this.limiter instanceof RequestLimiter){
+                let result = this.limiter.checkIp(request)
+                if (!result.success) {
+                    sendFail(result.message, result.code)
                     return
                 }
-                let checkEvent = false
-                this.emmiter.on('checkRes', () => {
-                    if (!isCheck) {
-                        response.statusCode = 404
-                        response.end()
+            }
+            let isCheck = false
+            let addr = decodeURI(request.url.toString())
+            let host = request.headers['x-forwarded-host'] ?? request.headers['host']
+            Logger.debug('ROUTER',`Input Request: ${host}${addr}`)
+            host = host.replace(/\:[0-9]*/,'')
+            if(!this.#staticRoutes && !this.#dynamicRoutes){
+                sendFail('Ни одной коллекции маршрутов не было передано в роутер!',503)
+                return
+            }
+            if(this.#staticRoutes){
+                let routesDomain = Object.keys(this.#staticRoutes).find(key=>new RegExp(`^${key}$`).test(host))
+                if (routesDomain) {
+                    let routes = this.#staticRoutes[routesDomain]
+                    for(let addresReg of routes.keys()){
+                        let reg = new RegExp(addresReg)
+                        if(reg.test(addr)){
+                            let filePath = path.join(Router.#CONFIG.ROOT,routes.get(addresReg)).replace(/\\/g,'/')
+                            if(fs.existsSync(filePath)){
+                                let fileInfo = fs.lstatSync(filePath)
+                                if(fileInfo.isDirectory())
+                                    filePath = path.join(Router.#CONFIG.ROOT,addr.replace(addresReg,routes.get(addresReg))).replace(/\\/g,'/')
+                                let ext = `.${filePath.split('.').pop()}`
+                                let contentType = Router.#CONFIG.ALLOWED_STATIC_FORMATS.find(([key,value])=>value==ext)?.[0]
+                                if(fs.existsSync(filePath) && contentType){
+                                    fs.readFile(filePath, (err, data) => {
+                                        if (!err) {
+                                            response.setHeader('Content-Type', contentType)
+                                            response.end(data)
+                                        } else {
+                                            sendFail(`Не удалось прочитать файл - {${filePath}}, запрос отклонен!`,503)
+                                        }
+                                    })
+                                    return
+                                }else{
+                                    sendFail(`Расширение файла - {${ext}} не является допустимым, либо указанный путь: \n{\n   URL:${host+'/'+addr}, \n   PATH:${filePath}\n}\n, не существует, запрос отклонен!`)
+                                    return
+                                }
+                            }else{
+                                sendFail(`Указанный путь: \n{\n   URL:${host+addr}, \n   PATH:${filePath}\n}\n, не существует, запрос отклонен!`)
+                                return
+                            }
+                        }
                     }
-                })
-                for (let item of routes.keys()) {
-                    let reg = new RegExp(item)
-                    if (reg.test(path)) {
-                        let route, app;
-                        if (item != path) {
-                            route = path.replace(item, routes.get(item)).split(':')
+                }
+            } 
+            if (this.#dynamicRoutes) {
+                let routesDomain = Object.keys(this.#dynamicRoutes).find(key=>new RegExp(`^${key}$`).test(host))
+                if (!routesDomain) {
+                    sendFail('Нет совпадений доменных имен в роутах и конфигурации')
+                    return
+                }
+                let routes = this.#dynamicRoutes[routesDomain]
+                let checkEvent = false
+                for (let addresReg of routes.keys()) {
+                    let reg = new RegExp(addresReg)
+                    if (reg.test(addr)) {
+                        let route, app
+                        if (addresReg != addr) {
+                            route = addr.replace(addresReg, routes.get(addresReg)).split(':')
                         } else {
-                            route = routes.get(item).split(':')
+                            route = routes.get(addresReg).split(':')
                         }
                         if (route.length != 2) {
-                            response.statusCode = 404
-                            response.end()
+                            sendFail()
                             throw new Error('Неверный шаблон адреса')
                         }
                         let methods = route[0].split('/')
                         route = route[1].split('/')
-                        let path1 = `${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.mjs`
-                        let path2 = `${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.js`
+                        let path1 = path.normalize(`${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.mjs`).replace(/\\/g,'/')
+                        let path2 = path.normalize(`${Router.#CONFIG.CONTROLLER_PATH}/${route[0]}.js`).replace(/\\/g,'/')
                         let controllerPath = ''
                         if (fs.existsSync(path1)) {
                             controllerPath = path1
@@ -158,15 +159,12 @@ export class Router {
                             if(fs.existsSync(path2)){
                                 controllerPath = path2
                             }else{
-                                response.statusCode = 404
-                                response.end()
+                                sendFail()
                                 throw new Error('Не найден контроллер для запроса, проверьте переменную CONTROLLER_PATH в файле конфигурации и файл с роутами')
                             }
                         }
                         route.shift()
                         let classController = (await import(url.pathToFileURL(controllerPath).href)).default
-                        response.setHeader('Content-Type', 'text/html; charset=utf-8')
-
                         switch (classController.type) {
                             case 'base': app = new HttpClient(request, response, methods, Router.#CONFIG.COOKIE_ENABLED)
                                 break
@@ -174,26 +172,33 @@ export class Router {
                                 break
                             default: throw new Error('Не указан тип контролеера')
                         }
-                        await app.init()
+                        if(!await app.init())
+                            sendFail(`Не удалось инициализировать HttpClient`, 503)
                         let controller = new classController(app)
                         let method = route[0]
+                        if(!controller?.[method]){
+                            sendFail(`По URL: {${host+addr}} в контроллере - ${controllerPath} не найдена функция - {${method}}, либо неверно составлен маршрут, запрос отклонен!`)
+                            return
+                        }
                         route.shift()
-
-                        let r = this
+                        let router = this
                         if (route.length == 0) route = null
                         controller.on('error', (err)=>{
-                            console.log("Error caught: ", err.message)
+                            Logger.error('Controller', err)
+                        })
+                        let eventName = crypto.randomUUID()
+                        this.#emmiter.on(eventName, () => {
+                            if (!isCheck) sendFail('',403)
                         })
                         controller.on('ready', async (result) => {
                             if (!result) isCheck = false
                             else await controller[method](app, route)
                                 .then(result => {
                                     isCheck = result
-                                    r.emmiter.emit('checkRes')
+                                    router.#emmiter.emit(eventName)
                                 })
                                 .catch(err => {
-                                    response.statusCode = 503
-                                    response.end();
+                                    sendFail('',503)
                                     Logger.error('Router',err, request.url.toString())
                                 })
                         })
@@ -205,14 +210,28 @@ export class Router {
                     }
                 }
                 if (!checkEvent) {
-                    response.statusCode = 404
-                    response.end()
+                    sendFail('Не найден подходящий контроллер, запрос отклонен со статусом 404')
                 }
             }
         } catch (err) {
             Logger.error('Router',err, request.url.toString());
+            sendFail('',503)
         }
     }
+
+    /** 
+	 * @param {Object} params
+     * @param {string} params.domain
+     * @param {Map} [params.routes]
+     * @param {number} [params.interval]
+     * @param {number} [params.allowCount]
+     * @param {number} [params.blockCount]
+     * @param {number} [params.blockTime]
+	 */
+	limit(params){
+		this.#limiter = new RequestLimiter(params)
+		return this
+	}
 }
 
 export class RouterSocket {
@@ -239,18 +258,18 @@ export class RouterSocket {
                 if (client.input.hasOwnProperty('type') && client.type == null) {
                     if (client.input.type != null && client.input.type != '') client.type = client.input.type
                 }
-                let path = client.input.query
+                let request = client.input.query
                 for (let item of this.#routes.keys()) {
                     let reg = new RegExp(item)
-                    if (reg.test(path)) {
+                    if (reg.test(request)) {
                         let route
-                        if (item != path) {
-                            route = path.replace(item, this.#routes.get(item)).split('/')
+                        if (item != request) {
+                            route = request.replace(item, this.#routes.get(item)).split('/')
                         } else {
                             route = this.#routes.get(item).split('/')
                         }
-                        let path1 = `${RouterSocket.#CONFIG.ROOT}/controllers/${route[0]}.mjs`
-                        let path2 = `${RouterSocket.#CONFIG.ROOT}/controllers/${route[0]}.js`
+                        let path1 = path.normalize(`${RouterSocket.#CONFIG.ROOT}/controllers/${route[0]}.mjs`).replace(/\\/g,'/')
+                        let path2 = path.normalize(`${RouterSocket.#CONFIG.ROOT}/controllers/${route[0]}.js`).replace(/\\/g,'/')
                         let controllerPath = ''
                         if (fs.existsSync(path1)) {
                             controllerPath = path1

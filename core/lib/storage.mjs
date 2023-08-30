@@ -21,6 +21,9 @@ export default class LocalStorage {
      */
     static init() {
         try{
+            if (!fs.existsSync(LocalStorage.#CONFIG.STORAGE_PATH)) {
+                fs.mkdirSync(LocalStorage.#CONFIG.STORAGE_PATH,{recursive: true})
+            }
             LocalStorage.#restore()
         }catch(err){
             Logger.error('Storage.init()',err)
@@ -34,9 +37,13 @@ export default class LocalStorage {
      * @returns 
      */
     static set(name, value) {
-        this.#storage.set(name, value)
-        this.#save()
-        return true
+        try{
+            this.#storage.set(name, value)
+            return this.#save()
+        }catch(err){
+            Logger.error('LocalStorage.set()', err)
+            return false
+        }
     }
 
     /**
@@ -46,12 +53,17 @@ export default class LocalStorage {
      * @returns {Promise<boolean>}
      */
     static async unset(name) {
-        if (this.#storage.has(name)) {
-            this.#storage.delete(name)
-            if(await this.#save()) return true
-            else return false
+        try{
+            if (this.#storage.has(name)) {
+                this.#storage.delete(name)
+                if(this.#save()) return true
+                else return false
+            }
+            return false
+        }catch(err){
+            Logger.error('LocalStorage.unset()', err)
+            return false
         }
-        return false
     }
 
     /**
@@ -64,24 +76,22 @@ export default class LocalStorage {
     }
 
     /**
-     * Асинхронная функция для очистки и удаления локального хранилища
-     * @returns {Promise<boolean>}
+     * Функция для очистки и удаления локального хранилища
+     * @returns {boolean}
      */
     static clean() {
-        return new Promise((resolve,reject)=>{
-            try{
-                if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
-                    fs.unlink(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`,()=>{
-                        this.#storage = new Map()
-                        resolve(true)
-                    })
-                }else{
-                    resolve(false)
-                }
-            }catch(err){
-                reject(err)
+        try {
+            if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
+                fs.unlinkSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)
+                this.#storage = new Map()
+                return true
+            } else {
+                return false
             }
-        })
+        } catch (err) {
+            Logger.error('LocalStorage.clean()', err)
+            return false
+        }
     }
 
     /**
@@ -91,44 +101,45 @@ export default class LocalStorage {
      * @returns {any}
      * Возвращает значение параметра по его имени если оно передано, либо все хранилище 
      */
-    static get(name = null) {
-        if (name == null) return this.#storage
-        else return this.#storage.get(name)
+    static get(name = '') {
+        return this.#storage.get(name)
+    }
+
+    static getAll(){
+        return new Map(this.#storage)
     }
 
     static #save() {
-        return new Promise((resolve,reject)=>{
-            try{
-                let data = Object.fromEntries(this.#storage)
-                let obj
-                if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
-                    obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, 'utf-8'));
-                    obj.data = data
-                    obj.update = new Time()
-                } else {
-                    let createTime = new Time()
-                    obj = { data: data, create: createTime, update: createTime }
-                }
-                fs.writeFile(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, JSON.stringify(obj),(err)=>{
-                    if(err!=null) reject(err)
-                    else resolve(true)
-                })
-            }catch(err){
-                reject(err)
+        try {
+            let data = Object.fromEntries(this.#storage)
+            let obj
+            if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
+                obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, { encoding: 'utf-8' }))
+                obj.data = data
+                obj.update = new Time()
+            } else {
+                let createTime = new Time()
+                obj = { data: data, create: createTime, update: createTime }
             }
-        })    
+            fs.writeFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, JSON.stringify(obj))
+            return true
+        } catch (err) {
+            Logger.error('LocalStorage.save()', err)
+            return false
+        }
     }
     
     static #restore() {
         try{
             if (fs.existsSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`)) {
-                let obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, 'utf-8'));
+                let obj = JSON.parse(fs.readFileSync(`${LocalStorage.#CONFIG.STORAGE_PATH}/localStorage.json`, {encoding:'utf-8'}))
                 this.#storage = new Map(Object.entries(obj.data))
             } else {
                 this.#storage = new Map()
             }
         }catch(err){
-            throw err
+            Logger.error('LocalStorage.restore()', err)
+            this.#storage = new Map()
         }
     }
 }

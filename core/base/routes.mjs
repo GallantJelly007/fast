@@ -1,8 +1,15 @@
-export default new Map([
-    [/^index$/, 'post/get:ExampleController/view'],
-    [/^main$/, 'post/get:ExampleController/view'],
-    [/^$/, 'post/get:ExampleController/view'],
+const dynamicRoutes = new Map([
+    [/^\/index$/, 'post/get:ExampleController/view'],
+    [/^\/main$/, 'post/get:ExampleController/view'],
+    [/^\/$/, 'post/get:ExampleController/view'],
 ])
+
+const staticRoutes = new Map([
+    [/^\/public\//, 'public/'],
+    [/^\/jaxfis\//,'../node_modules/jaxfis/']
+])
+
+export {dynamicRoutes,staticRoutes}
 
 /*
 Коллекция роутов обрабатывается приложением автоматически,

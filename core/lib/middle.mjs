@@ -12,6 +12,7 @@ import * as nodemailer from 'nodemailer'
 import { EventEmitter } from 'events'
 import Nun from 'nunjucks'
 import path from 'path'
+import {Jax} from 'jaxfis'
 
 
 export class Middle {
@@ -26,6 +27,44 @@ export class Middle {
         }
         await HttpClient.setConfig(pathToConfig)
         await SocketClient.setConfig(pathToConfig)
+    }
+
+    /**
+     * @async
+     * @param {String} to 
+     * Адрес куда отправить письмо
+     * @param {String} subject 
+     * От кого письмо
+     * @param {String} text 
+     * Текст письма
+     * @returns {Promise<boolean>} Возвращает true в случае успешной отправки либо false
+     * @desc Отправляет письмо по указанному адресу через nodemailer
+     */
+    async mail(to, subject, text) {
+        try {
+            let transporter = nodemailer.createTransport({
+                host: Middle.#CONFIG.MAIL_HOST,
+                port: Middle.#CONFIG.MAIL_PORT,
+                secure: Middle.#CONFIG.MAIL_SECURE,
+                auth: {
+                    user: Middle.#CONFIG.MAIL_USER,
+                    pass: Middle.#CONFIG.MAIL_PASS,
+                },
+            })
+            let info = await transporter.sendMail({
+                from: `"${Middle.#CONFIG.SITE_NAME}" <${Middle.#CONFIG.MAIL_USER}>`, // sender address
+                to: to.toString(), // list of receivers
+                subject: subject, // Subject line
+                html: text, // html body
+            })
+            if (info.hasOwnProperty('accepted')) {
+                if (info.accepted.length > 0) return true
+                else return false
+            } else return false
+        } catch (err) {
+            Logger.error('Middle.mail()',err)
+            return false
+        }
     }
 
     /**
@@ -58,46 +97,6 @@ export class Middle {
             Logger.error('Middle',err)
             return false
         }
-        
-    }
-
-
-    /**
-     * @async
-     * @param {String} to 
-     * Адрес куда отправить письмо
-     * @param {String} subject 
-     * От кого письмо
-     * @param {String} text 
-     * Текст письма
-     * @returns {Promise<boolean>} Возвращает true в случае успешной отправки либо false
-     * @desc Отправляет письмо по указанному адресу через nodemailer
-     */
-    async mail(to, subject, text) {
-        let transporter = nodemailer.createTransport({
-            host: Middle.#CONFIG.MAIL_HOST,
-            port: Middle.#CONFIG.MAIL_PORT,
-            secure: Middle.#CONFIG.MAIL_SECURE,
-            auth: {
-                user: Middle.#CONFIG.MAIL_USER,
-                pass: Middle.#CONFIG.MAIL_PASS,
-            },
-        })
-        try {
-            let info = await transporter.sendMail({
-                from: `"${Middle.#CONFIG.SITE_NAME}" <${Middle.#CONFIG.MAIL_USER}>`, // sender address
-                to: to.toString(), // list of receivers
-                subject: subject, // Subject line
-                html: text, // html body
-            })
-            if (info.hasOwnProperty('accepted')) {
-                if (info.accepted.length > 0) return true
-                else return false
-            } else return false
-        } catch (err) {
-            Logger.error('Middle',err)
-            return false
-        }
     }
 }
 
@@ -114,8 +113,21 @@ export class HttpClient extends Middle {
     uploadFiles = []
     os = 'Unknown'
     ip
+    cookie
+    session
     #methods
     #useCookie
+
+    static #responseTypes = {
+        JSON:'json',
+        TEXT:'text',
+        HTML:'html',
+        BUFFER:'buffer'
+    }
+
+    static get RESPONSE_TYPES(){
+        return HttpClient.#responseTypes
+    }
     
     static async setConfig(pathToConfig){
         try{
@@ -123,6 +135,196 @@ export class HttpClient extends Middle {
         }catch(error){
             Logger.error('HttpClient.setConfig()',error)
         }
+    }
+ 
+    /**
+     * 
+     * @param {String} pathFile 
+     * Путь до HTML-шаблона
+     * @param {Object} params 
+     * Объект с параметрами которые используется для подстановки в шаблон
+     * @desc Рендерит HTML-шаблон .html
+     */
+    static #baseRender(request, pathFile, params = null) {
+        return new Promise((resolve, reject) => {
+            try {
+                if(typeof pathFile != 'string')
+                    reject(false)
+                pathFile = path.isAbsolute(pathFile) ? pathFile : path.normalize(path.resolve(HttpClient.#CONFIG.ROOT,pathFile)).replace(/\\/g,'/')
+                if (!fs.existsSync(pathFile)) 
+                    reject(false)
+                let host = request.headers['x-forwarded-host']
+                host = host ?? request.headers['host']
+                let domain = HttpClient.#CONFIG.DOMAIN
+                let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
+                if (incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
+                    domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
+                params = params ? { domain: domain, params } : { domain: domain }
+                Nun.render(pathFile, params, (err, html) => {
+                    if (err) {
+                        Logger.error('HttpClient.baseRender()', err)
+                        reject(false)
+                    }
+                    resolve(html)
+                })
+            } catch (err) {
+                Logger.error('HttpClient.baseRender()', err)
+                reject(false)
+            }
+        })
+    }
+
+    /**
+     * 
+     * @param {Object} params 
+     * Праметры ответа
+     * @param {any} [params.data]
+     * @param {string} [params.pathFile]
+     * @param {string} [params.type]
+     * @param {number} [params.code]
+     * @param {BufferEncoding} [params.encoding]
+     * Кодировка для преобразования в текстовый формат (по умолчанию: UTF-8)
+     * @desc Отправляет клиенту данные в текстовом формате через HTTP
+     */
+    static async #baseResponse(request, response, params={data:undefined, pathFile:'', code:200 ,type:undefined, encoding:'utf-8'}) {
+        try{
+            let contentType, contentLength, data
+            if(params?.type){
+                let encoding = params?.encoding ? params.encoding : 'utf-8'
+                switch(params.type){
+                    case HttpClient.RESPONSE_TYPES.JSON:
+                        contentType = `application/json; charset=${encoding}`
+                        if(typeof params?.pathFile === 'string'){
+                            let pathFile = path.isAbsolute(params.pathFile) 
+                                        ? params.pathFile 
+                                        : path.normalize(path.resolve(HttpClient.#CONFIG.ROOT, params.pathFile)).replace(/\\/g,'/')
+                            if(fs.existsSync(pathFile)){
+                                data = fs.readFileSync(pathFile,{encoding})
+                                contentLength = Buffer.from(data,encoding).length
+                            }
+                        }else if(params?.data){
+                            data = typeof params.data === 'string' ? params.data : JSON.stringify(params.data, Jax.jsonMapReplacer)
+                            contentLength = Buffer.from(data,encoding).length
+                        }
+                        break
+                    case HttpClient.RESPONSE_TYPES.BUFFER:
+                        contentType = `application/octet-stream`
+                        if(typeof params?.pathFile === 'string'){
+                            let pathFile = path.isAbsolute(params.pathFile) 
+                                        ? params.pathFile 
+                                        : path.normalize(path.resolve(HttpClient.#CONFIG.ROOT, params.pathFile)).replace(/\\/g,'/')
+                            if(fs.existsSync(pathFile)){
+                                data = fs.readFileSync(pathFile)
+                                contentLength = data.length
+                            }
+                        }else if(params?.data){
+                            data = params?.data instanceof Buffer || params?.data instanceof Uint8Array ? params.data : Buffer.from(JSON.stringify(params.data, Jax.jsonMapReplacer), encoding)
+                            contentLength = data.length
+                        }
+                        break
+                    case HttpClient.RESPONSE_TYPES.HTML:
+                        contentType = `text/html; charset=${encoding}`
+                        if(typeof params?.pathFile === 'string'){
+                            let pathFile = path.isAbsolute(params.pathFile) 
+                                        ? params.pathFile 
+                                        : path.normalize(path.resolve(HttpClient.#CONFIG.ROOT, params.pathFile)).replace(/\\/g,'/')
+                            if(fs.existsSync(pathFile)){
+                                let res = await HttpClient.#baseRender(request,pathFile,params?.data)
+                                if(res)
+                                    data = res
+                            }
+                        }else if(params?.data && typeof params?.data === 'string'){
+                            data = params.data
+                            contentLength = Buffer.from(data,encoding).length
+                        }
+                        break
+                    case HttpClient.RESPONSE_TYPES.TEXT:
+                        contentType = `text/plain; charset=${params.encoding}`
+                        if(typeof params?.pathFile === 'string'){
+                            let pathFile = path.isAbsolute(params.pathFile) 
+                                        ? params.pathFile 
+                                        : path.normalize(path.resolve(HttpClient.#CONFIG.ROOT, params.pathFile)).replace(/\\/g,'/')
+                            if(fs.existsSync(pathFile)){
+                                data = fs.readFileSync(pathFile,{encoding})
+                                contentLength = Buffer.from(data,encoding).length
+                            }
+                        }else if(params?.data){
+                            data = typeof params.data === 'string'? params.data :(typeof params.data.toString === 'function'? params.data.toString() : '')
+                            contentLength = Buffer.from(data,encoding).length
+                        }
+                        break
+                    default:
+                        contentType = `*/*`
+                        break
+                }
+            }
+            if(contentType)
+                response.setHeader('Content-Type', contentType)
+            if (contentLength)
+                response.setHeader('Content-Length', contentLength)
+            if (params?.code && typeof params.code === 'number' && params.code>99)
+                response.statusCode = params.code
+            if (data)
+                response.write(data)
+            response.end()
+            return true
+        }catch(err){
+            Logger.error('HttpClient.baseResponse()',err)
+            return false
+        }
+    }
+
+    /**
+     * @param {*} response 
+     * @param {String} addr 
+     * @desc
+     * Переадресует запрос по указанному адресу, устанавливает заголовок 301
+     */
+    static #baseRedirect(response, addr) {
+        try{
+            if(typeof addr === 'string'){
+                response.writeHead(301, { 'Location': addr })
+                response.end()
+                Logger.debug('HttpClient.baseRedirect()','',addr)
+            }else{
+                throw new Error(`Addr param haven't correct format!`)
+            }
+        }catch(err){
+            Logger.error('HttpClient.baseRedirect()',err)
+        }
+    }
+
+    static view(request, response, pathFile, params = null){
+        return HttpClient.#baseResponse(request,response, {
+            data:params,
+            pathFile:pathFile,
+            type:HttpClient.RESPONSE_TYPES.HTML
+        })
+    }
+
+    static render(request, pathFile, param = null){
+        return HttpClient.#baseRender(request, pathFile ,param)
+    }
+
+    /**
+     * 
+     * @param {*} response 
+     * @param {Object} [params]
+     * @param {any|undefined} [params.data]
+     * @param {string} [params.type]
+     * @param {number} [params.code]
+     * @param {BufferEncoding} [params.encoding]
+     */
+    static send(request, response, params){
+        return HttpClient.#baseResponse(request, response, params)
+    }
+
+    /**
+     * @param {*} response
+     * @param {string} addr 
+     */
+    static redirect(response, addr){
+        HttpClient.#baseRedirect(response, addr)
     }
 
     constructor(req, res, methods, useCookie = true) {
@@ -136,14 +338,20 @@ export class HttpClient extends Middle {
     async init(){
         try{
             let input = await this.getInput(this.#methods)
+            if(!input)
+                throw new Error('Не удалось получить входные данные input')
             if (this.#useCookie) 
-                Cookie.init(this.request, this.response)
-            let sesId = this.#useCookie&&Cookie.isset('ses-id')?Cookie.get('ses-id'):(input.hasOwnProperty('sesId')?input.sesId:null)
-            if(HttpClient.#CONFIG.SESSION_ENABLED)
-                await Session.init(sesId, true)
+                this.cookie = new Cookie(this.request, this.response)
+            let sesId = this.#useCookie&&this.cookie.isset('ses-id')?this.cookie.get('ses-id'):(input.hasOwnProperty('sesId')?input.sesId:null)
+            if(HttpClient.#CONFIG.SESSION_ENABLED){
+                this.session = new Session()
+                await this.session.init(sesId, this.cookie)
+            }
             this.token = new Token()
             this.translate = new Translate()
+            return true
         }catch(err){
+            Logger.error('HttpClient.init()', err)
             throw err
         }
     }
@@ -178,10 +386,10 @@ export class HttpClient extends Middle {
             this.ip = input.getIp()
             Logger.debug('HttpClient', "HttpClient.getInput() | Fields", this.input)
             Logger.debug('HttpClient', "HttpClient.getInput() | Files", this.uploadFiles)
+            return this.input
         }catch(err){
             Logger.error('HttpClient.getInput()',err)
         }
-        return this.input
     }
 
     /**
@@ -190,92 +398,47 @@ export class HttpClient extends Middle {
     * Путь до HTML-шаблона
     * @param {Object} param 
     * Объект с параметрами которые используется для подстановки в шаблон
-    * @returns {Promise}
+    * @returns {Promise<any|undefined>}
     * @desc Рендерит HTML-шаблон .html и возвращает его через Promise
     */
-    render(pathFile, param = null) {
-        if (!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))) {
-            pathFile = path.resolve(HttpClient.#CONFIG.ROOT, pathFile)
-        }
-        let host = this.request.headers['x-forwarded-host']
-        host = host ?? this.request.headers['host']
-        let domain = HttpClient.#CONFIG.DOMAIN
-        let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
-        if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
-            domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
-        return new Promise((resolve, reject) => {
-            if (!fs.existsSync(pathFile)) reject(false)
-            param = param != null ? { domain: domain, root: param } : { domain: domain }
-            Nun.render(pathFile, param, (err, html) => {
-                if (err) reject(err)
-                resolve(html)
-            })
-        })
+    render(pathFile, param = null){
+        return HttpClient.#baseRender(this.request, pathFile, param)
     }
 
     /**
      * 
      * @param {String} pathFile 
      * Путь до HTML-шаблона
-     * @param {Object} param 
+     * @param {Object} params
      * Объект с параметрами которые используется для подстановки в шаблон
      * @desc Рендерит HTML-шаблон .html и отправляет клиенту
      */
-    view(pathFile, param = null) { //Неполадки с путями
-        if(!(path.normalize(pathFile + '/') === path.normalize(path.resolve(pathFile) + '/'))){
-            pathFile = path.resolve(HttpClient.#CONFIG.ROOT,pathFile)
-        }
-        let host = this.request.headers['x-forwarded-host']
-        host = host ?? this.request.headers['host']
-        let domain = HttpClient.#CONFIG.DOMAIN
-        let incomingDomainReg = new RegExp(`^${host.split(':').shift()}`)
-        if(incomingDomainReg.test(HttpClient.#CONFIG.DOMAIN_NAME))
-            domain = `${HttpClient.#CONFIG.PROTOCOL}://${host}`
-        param = param != null ? { domain: domain, p: param } : { domain: domain}
-        Nun.render(pathFile, param, (err, html) => {
-            if (err == null) {
-                this.response.write(html)
-                this.response.end()
-            } else {
-                Logger.error("HttpClient.view()",err)
-            }
+    view(pathFile, params = null) { 
+        return HttpClient.#baseResponse(this.request,this.response, {
+            data:params,
+            pathFile:pathFile,
+            type:HttpClient.RESPONSE_TYPES.HTML
         })
     }
 
     /**
-     * 
-     * @param {Object} data 
-     * Данные
-     * @param {string} encode
-     * Кодировка для преобразования в текстовый формат (по умолчанию: UTF-8)
-     * @desc Отправляет клиенту данные в текстовом формате через HTTP
+     * @param {Object} params 
+     * @param {any|undefined} params.data
+     * @param {string} params.type
+     * @param {number} params.code
+     * @param {BufferEncoding} params.encoding
      */
-    sendText(data,encode='utf-8') {
-        this.response.write(data.toString(encode))
-        this.response.end()
-    }
-
-     /**
-     * 
-     * @param {Object} data 
-     * @desc Отправляет клиенту данные в JSON формате через HTTP
-     */
-    sendJson(data) {
-        this.response.write(JSON.stringify(data,Input.jsonMapReplacer))
-        this.response.end()
+    send(params){
+        return HttpClient.#baseResponse(this.request, this.response, params)
     }
 
     /**
-     * 
-     * @param {String} addr 
-     * @desc
-     * Переадресует запрос по указанному адресу, устанавливает заголовок 301
+     * @param {string} addr 
      */
-    redirect(addr) {
-        this.response.writeHead(301, { 'Location': addr })
-        this.response.end()
-        Logger.debug('HttpClient','',addr)
+    redirect(addr){
+        HttpClient.#baseRedirect(this.response,addr)
     }
+
 }
 
 export class SocketClient extends Middle {
@@ -290,6 +453,7 @@ export class SocketClient extends Middle {
     client
     type
     emitter
+    session
     #router
     #routes
 
@@ -320,9 +484,11 @@ export class SocketClient extends Middle {
                 if (data.hasOwnProperty('sesId')) {
                     sesId = data.sesId
                 }
-                if (SocketClient.#CONFIG.SESSION_ENABLED)
-                    await Session.init(SocketClient.#CONFIG.ROOT, sesId)
-                this.input = data;
+                if (SocketClient.#CONFIG.SESSION_ENABLED){
+                    this.session = new Session()
+                    await this.session.init(sesId)
+                }
+                this.input = data
                 if (this.#router == null) {
                     this.#router = new RouterSocket(this.#routes)
                 }
@@ -331,10 +497,10 @@ export class SocketClient extends Middle {
             }catch(err){
                 Logger.error('SocketClient.onmessage',err)
             }
-        });
+        })
         client.on('close', () => {
             this.emitter.emit('close')
-        });
+        })
     }
 
     /**

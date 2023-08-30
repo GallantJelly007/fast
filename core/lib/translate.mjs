@@ -16,33 +16,41 @@ export default class Translate{
         }
     }
     
-    constructor(lang=null){
-        let lng=lang!=null&&lang!=""?lang:Translate.#CONFIG.LOCALE 
-        this.#lang = lng;
+    constructor(lang){
+        this.#lang = typeof lang === 'string' && lang!="" ? lang : Translate.#CONFIG.LOCALE;
     } 
 
     async init(){
-        if(Translate.#CONFIG.IS_ON_STATIC_TRANSLATE){
-            this.#strings = (await import(url.pathToFileURL(Translate.#CONFIG.ROOT).href+'/'+Translate.#CONFIG.LOCALE_PATH+'/locale_'+this.#lang+'.js')).default
-            return true
-        }else{ 
-            return false
+        try{
+            if(Translate.#CONFIG.IS_ON_STATIC_TRANSLATE){
+                this.#strings = (await import(url.pathToFileURL(Translate.#CONFIG.ROOT).href+'/'+Translate.#CONFIG.LOCALE_PATH+'/locale_'+this.#lang+'.js')).default
+                return true
+            }else{ 
+                return false
+            }
+        }catch(err){
+            throw err
         }
     }
 
     t(field,params=[]){
-        if(this.#strings.hasOwnProperty(field)){
-            let text = this.#strings[field]
-            if(params!=null){
-                params = Array.isArray(params)?params:[params]
-                for(let i=0;i<params.length;i++){
-                    let reg = new RegExp(`{\\$${i}}`,'g')
-                    text = text.replace(reg,params[i])
+        try{
+            if(this.#strings.hasOwnProperty(field)){
+                let text = this.#strings[field]
+                if(params!=null){
+                    params = Array.isArray(params)?params:[params]
+                    for(let i=0;i<params.length;i++){
+                        let reg = new RegExp(`{\\$${i}}`,'g')
+                        text = text.replace(reg,params[i])
+                    }
                 }
+                return text
+            }else{
+                return ''
             }
-            return text
-        }else{
-            return false
+        }catch(err){
+            Logger.error('Translate.t()', err)
+            return ''
         }
     }
 }

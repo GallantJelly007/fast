@@ -13,23 +13,21 @@
  * @property {string} sign 
  */
 
-
-
-
 import http from 'http'
 import https from 'https'
 import * as WebSocket from 'ws'
 import { EventEmitter } from 'events'
 
 
-import LocalStorage from './lib/storage.mjs'
-import Session from './lib/session.mjs'
-import { Router } from './lib/router.mjs'
-import { SocketClient } from './lib/middle.mjs'
-import Logger, { UrlError } from './lib/logger.mjs'
-import Model from './lib/model.mjs'
-import TaskManager from './lib/task-manager.mjs'
-import { Input } from './lib/input.mjs'
+import LocalStorage from './storage.mjs'
+import Session from './session.mjs'
+import { Router, RouterSocket } from './router.mjs'
+import { SocketClient } from './middle.mjs'
+import Logger, { UrlError } from './logger.mjs'
+import Model from './model.mjs'
+import TaskManager from './task-manager.mjs'
+import { Input } from './input.mjs'
+import RequestLimiter from './request-limiter.mjs'
 
 
 /**
@@ -38,37 +36,84 @@ import { Input } from './lib/input.mjs'
 
 export class AppHttp extends EventEmitter {
 
-	#routes
 	#callbackRouting
-
+	#router
+	#port
+	#domain
+	#protocol
 	static #CONFIG
+
+	get port(){
+		return this.#port
+	}
+
+	get domain(){
+		return this.#domain
+	}
+
+	get protocol(){
+		return this.#protocol
+	}
+
+	get router(){
+		return this.#router
+	}
 
 	/**
 	 * @param {object} params 
 	 * Параметры запуска приложения
-	 * @param {Array<Map>|undefined} [params.routes]
-	 * @param {Function|undefined} [params.callbackRouting]
+	 * @param {string} [params.protocol]
+	 * @param {Number} [params.port]
+	 * Доменное имя без протокола
+	 * @param {string} [params.domain]
+	 * @param {RequestLimiter} [params.limiter]
+	 * @param {Object} [params.routes]
+	 * @param {Object} [params.staticRoutes]
+	 * @param {Function} [params.callbackRouting]
 	 */
 	constructor(params) {
 		super()
+		this.#protocol = typeof params?.protocol === 'string' ? params.protocol.toLowerCase() : AppHttp.#CONFIG.PROTOCOL
+		this.#port = typeof params?.port === 'number' ? params.port : AppHttp.#CONFIG.PORT
+		this.#domain = typeof params?.domain === 'string' ? params.domain : AppHttp.#CONFIG.DOMAIN_NAME
+		this.#router = new Router({
+			routes:params?.routes,
+			staticRoutes: params?.staticRoutes,
+			limiter: params?.limiter
+		})
 		if (params.callbackRouting && params.callbackRouting instanceof Function) {
 			this.#callbackRouting = params.callbackRouting
 		} else {
-			if (params.routes) {
-				this.#routes = params.routes
-				this.#callbackRouting = (request, response) => {
-					try {
-						let router = new Router(this.#routes)
-						router.start(request, response)
-					} catch (err) {
-						if (err instanceof UrlError)
-							Logger.error('APP', err, err.url)
-						else
-							Logger.error('APP', err)
-					}
+			this.#callbackRouting = (request, response) => {
+				try {
+					this.router.route(request, response)
+				} catch (err) {
+					if (err instanceof UrlError)
+						Logger.error('APP', err, err.url)
+					else
+						Logger.error('APP', err)
 				}
 			}
 		}
+		process.on("SIGINT", async () => {
+			Logger.debug('APP', "Закрытие App process.exit(1)")
+			if (AppHttp.#CONFIG.SESSION_ENABLED)
+				await Session.clean()
+			if (AppHttp.#CONFIG.STORAGE_ENABLED)
+				await LocalStorage.clean()
+			if (AppHttp.#CONFIG.LIMITER_ENABLED && this.#router.limiter instanceof RequestLimiter)
+				await this.#router.limiter.save()
+			this.emit('close')
+			process.exit(1)
+		})
+		process.on("SIGQUIT", () => {
+			Logger.debug('APP', "Закрытие App process.exit(3)")
+			process.exit(3)
+		})
+		process.on("SIGTERM", () => {
+			Logger.debug('APP', "Закрытие App process.exit(15)")
+			process.exit(15)
+		})
 	}
 
 	static async setConfig(pathToConfig) {
@@ -82,48 +127,52 @@ export class AppHttp extends EventEmitter {
 
 	async start() {
 		try {
-			if (!this.#callbackRouting) {
+			if (!this.#callbackRouting) 
 				throw new Error("Приложение не может быть запущено так как не был передан callbackRouting или массив routes")
-			}
-			process.on("SIGINT", () => {
-				Logger.debug('APP', "Закрытие App process.exit(1)")
-				if (AppHttp.#CONFIG.SESSION_ENABLED)
-					Session.clean()
-				if (AppHttp.#CONFIG.STORAGE_ENABLED)
-					LocalStorage.clean()
-				this.emit('close')
-				process.exit(1)
-			})
-			process.on("SIGQUIT", () => {
-				Logger.debug('APP', "Закрытие App process.exit(3)")
-				process.exit(3)
-			})
-			process.on("SIGTERM", () => {
-				Logger.debug('APP', "Закрытие App process.exit(15)")
-				process.exit(15)
-			})
-
-			if (AppHttp.#CONFIG.PROTOCOL != 'http' && AppHttp.#CONFIG.PROTOCOL != 'https') {
+			if (this.protocol != 'http' && this.protocol != 'https') 
 				throw new Error('Указан неверный протокол для приложения')
-			}
-			const server = AppHttp.#CONFIG.PROTOCOL == 'http' ? http : https
 			if (AppHttp.#CONFIG.SESSION_ENABLED)
 				TaskManager.addTask(AppHttp.#CONFIG.SESSION_CLEAN_INTERVAL * 60 * 1000, Session.clean)
+			if(!this.router.limiter && AppHttp.#CONFIG.LIMITER_ENABLED)
+				this.#router.limit({domain:this.domain})
+			if (this.router.limiter instanceof RequestLimiter)
+				TaskManager.addTask(AppHttp.#CONFIG.LIMITER_CLEAN_INTERVAL * 60 * 1000, RequestLimiter.clean)
 			if (AppHttp.#CONFIG.STORAGE_ENABLED)
 				LocalStorage.init()
 			if (AppHttp.#CONFIG.MODEL_ENABLED)
 				Model.init()
-			if(AppHttp.#CONFIG.TMP_CLEAN_INTERVAL>0)
+			if (AppHttp.#CONFIG.TMP_CLEAN_INTERVAL > 0)
 				TaskManager.addTask(AppHttp.#CONFIG.TMP_CLEAN_INTERVAL * 60 * 1000, Input.clearTemp)
+			const server = this.protocol == 'http' ? http : https
 			this.emit('beforeStart')
 			// @ts-ignore
-			server.createServer((request,response)=>this.#callbackRouting(request, response)).listen(AppHttp.#CONFIG.PORT)
+			server.createServer((request,response)=>this.#callbackRouting(request, response)).listen(this.port)
 
 			this.emit('afterStart')
-			Logger.debug('APP', `Приложение запущенно перейдите на ${AppHttp.#CONFIG.DOMAIN}:${AppHttp.#CONFIG.PORT}`)
+			Logger.debug('APP', `Приложение запущенно перейдите на ${this.protocol}://${this.domain}:${this.port}`)
 		} catch (err) {
 			Logger.error('APP', err)
 		}
+	}
+
+	/**
+	 * @param {Object} params
+	 * @param {string} params.domain
+	 * Устанавливает доменное имя для ограничения запросов
+     * @param {Map} [params.routes]
+	 * Коллекция роутов для ограничения, имеет высший приоритет чем доменное имя (игнорирует все запросы не входящие в коллекцию роутов)
+     * @param {number} [params.interval]
+	 * Интервал для проверки кол-ва запросов, в минутах
+     * @param {number} [params.allowCount]
+	 * Кол-во разрешаемых запросов в течении одного интервала
+     * @param {number} [params.blockCount]
+	 * Кол-во запросов после которых IP будет добавлен в черный список
+     * @param {number} [params.blockTime]
+	 * Время блокировки 
+	 */
+	limit(params){
+		this.#router.limit(params)
+		return this
 	}
 }
 

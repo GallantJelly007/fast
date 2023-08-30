@@ -95,7 +95,7 @@ export default class Model {
                     else resolve(result.rows)
                 })
             }).catch(err =>{
-                Logger.error('Model.#getTableInfo',err)
+                Logger.error('Model.getTableInfo()',err)
                 resolve(false)
             })
         })
@@ -118,10 +118,9 @@ export default class Model {
                     else resolve(result.rows)
                 })
             }).catch(err =>{
-                Logger.error('Model.#getTablePrimary()',err)
+                Logger.error('Model.getTablePrimary()',err)
                 resolve(false)
             })
-            
         })
     }
 
@@ -213,340 +212,344 @@ export default class Model {
 
 
     #parseRequest(request){
-        const orderProps=['field','condition','prepare']
-        let req = {}
-        for(let prop of orderProps){
-            if(request.hasOwnProperty(prop)){
-                req[prop]=request[prop]
-                delete request[prop]
+        try {
+            const orderProps = ['field', 'condition', 'prepare']
+            let req = {}
+            for (let prop of orderProps) {
+                if (request.hasOwnProperty(prop)) {
+                    req[prop] = request[prop]
+                    delete request[prop]
+                }
             }
-        }
-        request={...req,...request}
-        for(let word in request){
-            switch(word){
-                case 'select':{
-                    if(request[word]!==null && Array.isArray(request[word]) && request[word].length){
-                        let params = request[word]
-                        request[word] = {params:params}
-                        this.#query += `SELECT `
-                        this.#parseRequest(request[word])
-                        this.#query += ` FROM ${this.constructor['table']}`
-                    }else if(request[word]!==null && typeof request[word]=='object' && request[word].hasOwnProperty('params')){
-                        let tb=''
-                        if(request[word].hasOwnProperty('tb')){ 
-                            if(typeof request[word].tb=='function'&&request[word].tb.prototype instanceof Model)
-                                tb = request[word].tb.table
-                            else if(typeof request[word].tb=='string')
-                                tb = request[word].tb
-                            delete request[word].tb
-                        }
-                        tb=tb==''?this.constructor['table']:tb        
-                        this.#query += `SELECT `
-                        this.#parseRequest(request[word])
-                        this.#query += ` FROM ${tb}`
-                    }else if(typeof request[word]=='string'){
-                        this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
-                    }
-                    break
-                }
-                case 'insert':{
-                    if(typeof request[word]=='object'&&request[word]!==null&&request[word].hasOwnProperty('values')||request[word].hasOwnProperty('valuesRaw')){
-                        let tb=''
-                        if(request[word].hasOwnProperty('tb')){ 
-                            if(typeof request[word].tb=='function'&&request[word].tb.prototype instanceof Model)
-                                tb = request[word].tb.table
-                            else if(typeof request[word].tb=='string')
-                                tb = request[word].tb
-                            delete request[word].tb
-                        }
-                        tb=tb==''?this.constructor['table']:tb
-                        this.#query += `INSERT INTO ${tb} `
-                        if(request[word].hasOwnProperty('params')){
-                            this.#query+='('
-                            this.#parseRequest({params:request[word].params})
-                            this.#query+=')'
-                            delete request[word].params
-                        }
-                    }else if(typeof request[word]=='string'){
-                        this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
-                    }
-                    break
-                }
-                case 'update':{
-                    if(typeof request[word]=='object'&&request[word]!==null&&request[word].hasOwnProperty('set')){
-                        let tb=''
-                        if(request[word].hasOwnProperty('tb')){ 
-                            if(typeof request[word].tb=='function'&&request[word].tb.prototype instanceof Model)
-                                tb = request[word].tb.table
-                            else if(typeof request[word].tb=='string')
-                                tb = request[word].tb
-                            delete request[word].tb
-                        }
-                        tb=tb==''?this.constructor['table']:tb
-                        this.#query += `UPDATE ${tb} SET `
-                        this.#parseRequest(request[word])
-                    }else if(typeof request[word]=='string'){
-                        this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
-                    }
-                    break
-                }
-                case 'delete':{
-                    if(typeof request[word]=='object' && request[word]!==null){
-                        let tb=''
-                        if(request[word].hasOwnProperty('tb')){ 
-                            if(typeof request[word].tb=='function'&&request[word].tb.prototype instanceof Model)
-                                tb = request[word].tb.table
-                            else if(typeof request[word].tb=='string')
-                                tb = request[word].tb
-                            delete request[word].tb
-                        }
-                        tb=tb==''?this.constructor['table']:tb
-                        this.#query += `DELETE FROM ${tb}`
-                        this.#parseRequest(request[word])
-                    }else 
-                        this.#query += `DELETE FROM ${this.constructor['table']}`
-                    break
-                }
-
-                case 'having':
-                case 'where':{
-                    this.#query+=` ${word.toUpperCase()} `
-                    if(typeof request[word]=='object' && request[word]!==null){
-                        this.#parseRequest(request[word])
-                    }else if(typeof request[word]=='string'){
-                        this.#query+= request[word]
-                    }
-                    break
-                }
-
-                case 'and':
-                case 'or':{
-                    if(request[word].constructor==Array){
-                        for(let i=0;i<request[word].length;i++){
-                            if(typeof request[word][i] === 'object'){
-                                this.#parseRequest(request[word][i])
-                            }else{
-                                this.#query+=request[word][i].toString()
-                            }
-                            if(i+1!=request[word].length){
-                                this.#query+=` ${word.toUpperCase()} `
-                            }
-                        }
-                    }else if(typeof request[word]=='object' && request[word]!==null){
-                        this.#query+=` ${word.toUpperCase()} `
-                        this.#parseRequest(request[word])
-                    }else if(typeof request[word]=='string'){
-                        this.#query+=` ${word.toUpperCase()} `+request[word]
-                    }
-                    break
-                }
-                
-                case 'notIn':
-                case 'in':{
-                    if(typeof request[word]=='object' && request[word]!==null){
-                        if(request[word].hasOwnProperty('field')&&request[word].hasOwnProperty('params')){
-                            let f = request[word].field
-                            delete request[word].field
-                            this.#query+=`${f} ${word.replace(/[A-Z]/g,' $&').toUpperCase()} (`
+            request = { ...req, ...request }
+            for (let word in request) {
+                switch (word) {
+                    case 'select': {
+                        if (request[word] !== null && Array.isArray(request[word]) && request[word].length) {
+                            let params = request[word]
+                            request[word] = { params: params }
+                            this.#query += `SELECT `
                             this.#parseRequest(request[word])
-                            this.#query+=')'
-                        }
-                    }
-                    break
-                }
-
-                case 'like':
-                case 'notLike':{
-                    if(typeof request[word]=='object' && request[word]!==null){
-                        if(request[word].hasOwnProperty('field')&&request[word].hasOwnProperty('params')){
-                            let f = request[word].field
-                            delete request[word].field
-                            this.#query+=`${f} ${word.replace(/[A-Z]/g,' $&').toUpperCase()} `
-                            this.#parseRequest(request[word])
-                        }
-                    }
-                    break
-                }
-
-                case 'between':
-                case 'notBetween':{
-                    if(typeof request[word] == 'object'&&request[word].constructor!=Array&&request[word].hasOwnProperty('field')&&request[word].hasOwnProperty('params')){
-                        if(Array.isArray(request[word].params) && request[word].params.length==2){
-                            this.#query += `${request[word].field} ${word.replace(/[A-Z]/g,' $&').toUpperCase()}`
-                            delete request[word].field
-                            request[word].and = request[word].params
-                            delete request[word].params
-                            this.#parseRequest(request[word])
-                        }
-                    }
-                    break
-                }   
-
-                case 'isNull':
-                case 'isNotNull':
-                case 'isTrue':
-                case 'isFalse':
-                case 'isUnknown':
-                case 'isNotUnknown':{
-                    if(typeof request[word] == 'object'&&request[word].constructor!=Array){
-                        this.#parseRequest(request[word])
-                        this.#query+=` ${word.replace(/[A-Z]/g,' $&').toUpperCase()}`
-                    }else{
-                        this.#query+=`${request[word].toString()} ${word.replace(/[A-Z]/g,' $&').toUpperCase()}`
-                    }
-                    break
-                }
-                case 'groupBy':{
-                    this.#query+=` GROUP BY ${request[word].toString()}`
-                    break
-                }
-                case 'orderBy':{
-                    if(typeof request[word]=='object'&& request[word]!==null &&request[word].constructor!=Array&&request[word].hasOwnProperty('field')&&request[word].hasOwnProperty('direction')){
-                        this.#query += ' ORDER BY '
-                        if (!Array.isArray(request[word].field))
-                            request[word].field = Model.asArray(request[word].field)
-                        if (!Array.isArray(request[word].direction)) 
-                            request[word].direction=Model.asArray(request[word].direction)
-                        if(request[word].field.length!=request[word].direction.length)
-                            throw new Error('Params field and direction must have the same number of elements')
-                        while (request[word].field.length > 0) {
-                            let item = request[word].field.shift()
-                            this.#query += `${item} ${request[word].direction.shift()?.toUpperCase()??''}${request[word].field.length != 0?', ':''}`;
-                        }
-                    }
-                    break
-                }
-
-                case 'limit':
-                case 'offset':{
-                    if(typeof request[word] == 'object'&&request[word].constructor!=Array){
-                        this.#query+=` ${word.toUpperCase()} `
-                        this.#parseRequest(request[word])
-                    }else if(typeof request[word] == 'number'||!isNaN(Number(request[word]))){
-                        this.#query+=` ${word.toUpperCase()} ${request[word]}`
-                    }
-                    break
-                }
-
-                case 'count':
-                case 'avg':
-                case 'max':
-                case 'min':
-                case 'sum':{
-                    if(typeof request[word]=='object'&& request[word]!==null &&request[word].constructor!=Array){
-                        this.#query+=`${word.toUpperCase()}(`
-                        this.#parseRequest(request[word])
-                        this.#query+=')'
-                    }else{
-                        this.#query+=`${word.toUpperCase()}(${request[word].toString()})`
-                    }
-                    break
-                }
-                case 'as':{
-                    this.#query+=` ${word.toUpperCase()} ${request[word]}`
-                    break
-                }
-                case 'field':{
-                    this.#query += request[word]
-                    break
-                }
-                case 'condition':{
-                    this.#query +=` ${request[word]} `
-                    break
-                }
-                case 'inner':{
-                    if(typeof request[word]=='object' && request[word]!==null){
-                        this.#query+='('
-                        this.#parseRequest(request[word])
-                        this.#query+=')'
-                    }else{
-                        this.#query+=`(${request[word].toString()})`
-                    }
-                    break
-                }
-                case 'prepare':{
-                    this.#query+= `$${(this.#position++)}`
-                    this.#data.push(request[word])
-                    break
-                }
-                case 'raw':{
-                    this.#query+= request[word].toString()
-                    break
-                }
-                case 'distinct':{
-                    if(request[word].constructor == Array){
-                        let q=''
-                        for(let item of request[word]){
-                            q+=q==''?`DISTINCT ${item}`:`, DISTINCT ${item}`
-                        }
-                        this.#query+=q
-                    }
-                    if(typeof request[word]=='string')
-                        this.#query+='DISTINCT '+request[word]
-                    break
-                }
-                case 'params':{
-                    if(request[word].constructor == Array){
-                        let first=true
-                        for(let i=0;i<request[word].length;i++){
-                            this.#query+=first?'':', '
-                            if(typeof request[word][i] === 'object'){
-                                this.#parseRequest(request[word][i])
-                            }else{
-                                this.#query+=`'${request[word][i].toString()}'`
+                            this.#query += ` FROM ${this.constructor['table']}`
+                        } else if (request[word] !== null && typeof request[word] == 'object' && request[word].hasOwnProperty('params')) {
+                            let tb = ''
+                            if (request[word].hasOwnProperty('tb')) {
+                                if (typeof request[word].tb == 'function' && request[word].tb.prototype instanceof Model)
+                                    tb = request[word].tb.table
+                                else if (typeof request[word].tb == 'string')
+                                    tb = request[word].tb
+                                delete request[word].tb
                             }
-                            first=false
+                            tb = tb == '' ? this.constructor['table'] : tb
+                            this.#query += `SELECT `
+                            this.#parseRequest(request[word])
+                            this.#query += ` FROM ${tb}`
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
                         }
-                    }else if(typeof request[word]=='object' && request[word]!==null){
-                        this.#parseRequest(request[word])
-                    }else if(typeof request[word]=='string'){
-                        this.#query+=`'${request[word]}'`
+                        break
                     }
-                    break
-                }
-                case 'set':{
-                    if(Array.isArray(request[word])&&request[word].length){
+                    case 'insert': {
+                        if (typeof request[word] == 'object' && request[word] !== null && request[word].hasOwnProperty('values') || request[word].hasOwnProperty('valuesRaw')) {
+                            let tb = ''
+                            if (request[word].hasOwnProperty('tb')) {
+                                if (typeof request[word].tb == 'function' && request[word].tb.prototype instanceof Model)
+                                    tb = request[word].tb.table
+                                else if (typeof request[word].tb == 'string')
+                                    tb = request[word].tb
+                                delete request[word].tb
+                            }
+                            tb = tb == '' ? this.constructor['table'] : tb
+                            this.#query += `INSERT INTO ${tb} `
+                            if (request[word].hasOwnProperty('params')) {
+                                this.#query += '('
+                                this.#parseRequest({ params: request[word].params })
+                                this.#query += ')'
+                                delete request[word].params
+                            }
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
+                        }
+                        break
+                    }
+                    case 'update': {
+                        if (typeof request[word] == 'object' && request[word] !== null && request[word].hasOwnProperty('set')) {
+                            let tb = ''
+                            if (request[word].hasOwnProperty('tb')) {
+                                if (typeof request[word].tb == 'function' && request[word].tb.prototype instanceof Model)
+                                    tb = request[word].tb.table
+                                else if (typeof request[word].tb == 'string')
+                                    tb = request[word].tb
+                                delete request[word].tb
+                            }
+                            tb = tb == '' ? this.constructor['table'] : tb
+                            this.#query += `UPDATE ${tb} SET `
+                            this.#parseRequest(request[word])
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += `SELECT ${request[word]} FROM ${this.constructor['table']}`
+                        }
+                        break
+                    }
+                    case 'delete': {
+                        if (typeof request[word] == 'object' && request[word] !== null) {
+                            let tb = ''
+                            if (request[word].hasOwnProperty('tb')) {
+                                if (typeof request[word].tb == 'function' && request[word].tb.prototype instanceof Model)
+                                    tb = request[word].tb.table
+                                else if (typeof request[word].tb == 'string')
+                                    tb = request[word].tb
+                                delete request[word].tb
+                            }
+                            tb = tb == '' ? this.constructor['table'] : tb
+                            this.#query += `DELETE FROM ${tb}`
+                            this.#parseRequest(request[word])
+                        } else
+                            this.#query += `DELETE FROM ${this.constructor['table']}`
+                        break
+                    }
+
+                    case 'having':
+                    case 'where': {
+                        this.#query += ` ${word.toUpperCase()} `
+                        if (typeof request[word] == 'object' && request[word] !== null) {
+                            this.#parseRequest(request[word])
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += request[word]
+                        }
+                        break
+                    }
+
+                    case 'and':
+                    case 'or': {
+                        if (request[word].constructor == Array) {
+                            for (let i = 0; i < request[word].length; i++) {
+                                if (typeof request[word][i] === 'object') {
+                                    this.#parseRequest(request[word][i])
+                                } else {
+                                    this.#query += request[word][i].toString()
+                                }
+                                if (i + 1 != request[word].length) {
+                                    this.#query += ` ${word.toUpperCase()} `
+                                }
+                            }
+                        } else if (typeof request[word] == 'object' && request[word] !== null) {
+                            this.#query += ` ${word.toUpperCase()} `
+                            this.#parseRequest(request[word])
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += ` ${word.toUpperCase()} ` + request[word]
+                        }
+                        break
+                    }
+
+                    case 'notIn':
+                    case 'in': {
+                        if (typeof request[word] == 'object' && request[word] !== null) {
+                            if (request[word].hasOwnProperty('field') && request[word].hasOwnProperty('params')) {
+                                let f = request[word].field
+                                delete request[word].field
+                                this.#query += `${f} ${word.replace(/[A-Z]/g, ' $&').toUpperCase()} (`
+                                this.#parseRequest(request[word])
+                                this.#query += ')'
+                            }
+                        }
+                        break
+                    }
+
+                    case 'like':
+                    case 'notLike': {
+                        if (typeof request[word] == 'object' && request[word] !== null) {
+                            if (request[word].hasOwnProperty('field') && request[word].hasOwnProperty('params')) {
+                                let f = request[word].field
+                                delete request[word].field
+                                this.#query += `${f} ${word.replace(/[A-Z]/g, ' $&').toUpperCase()} `
+                                this.#parseRequest(request[word])
+                            }
+                        }
+                        break
+                    }
+
+                    case 'between':
+                    case 'notBetween': {
+                        if (typeof request[word] == 'object' && request[word].constructor != Array && request[word].hasOwnProperty('field') && request[word].hasOwnProperty('params')) {
+                            if (Array.isArray(request[word].params) && request[word].params.length == 2) {
+                                this.#query += `${request[word].field} ${word.replace(/[A-Z]/g, ' $&').toUpperCase()}`
+                                delete request[word].field
+                                request[word].and = request[word].params
+                                delete request[word].params
+                                this.#parseRequest(request[word])
+                            }
+                        }
+                        break
+                    }
+
+                    case 'isNull':
+                    case 'isNotNull':
+                    case 'isTrue':
+                    case 'isFalse':
+                    case 'isUnknown':
+                    case 'isNotUnknown': {
+                        if (typeof request[word] == 'object' && request[word].constructor != Array) {
+                            this.#parseRequest(request[word])
+                            this.#query += ` ${word.replace(/[A-Z]/g, ' $&').toUpperCase()}`
+                        } else {
+                            this.#query += `${request[word].toString()} ${word.replace(/[A-Z]/g, ' $&').toUpperCase()}`
+                        }
+                        break
+                    }
+                    case 'groupBy': {
+                        this.#query += ` GROUP BY ${request[word].toString()}`
+                        break
+                    }
+                    case 'orderBy': {
+                        if (typeof request[word] == 'object' && request[word] !== null && request[word].constructor != Array && request[word].hasOwnProperty('field') && request[word].hasOwnProperty('direction')) {
+                            this.#query += ' ORDER BY '
+                            if (!Array.isArray(request[word].field))
+                                request[word].field = Model.asArray(request[word].field)
+                            if (!Array.isArray(request[word].direction))
+                                request[word].direction = Model.asArray(request[word].direction)
+                            if (request[word].field.length != request[word].direction.length)
+                                throw new Error('Params field and direction must have the same number of elements')
+                            while (request[word].field.length > 0) {
+                                let item = request[word].field.shift()
+                                this.#query += `${item} ${request[word].direction.shift()?.toUpperCase() ?? ''}${request[word].field.length != 0 ? ', ' : ''}`
+                            }
+                        }
+                        break
+                    }
+
+                    case 'limit':
+                    case 'offset': {
+                        if (typeof request[word] == 'object' && request[word].constructor != Array) {
+                            this.#query += ` ${word.toUpperCase()} `
+                            this.#parseRequest(request[word])
+                        } else if (typeof request[word] == 'number' || !isNaN(Number(request[word]))) {
+                            this.#query += ` ${word.toUpperCase()} ${request[word]}`
+                        }
+                        break
+                    }
+
+                    case 'count':
+                    case 'avg':
+                    case 'max':
+                    case 'min':
+                    case 'sum': {
+                        if (typeof request[word] == 'object' && request[word] !== null && request[word].constructor != Array) {
+                            this.#query += `${word.toUpperCase()}(`
+                            this.#parseRequest(request[word])
+                            this.#query += ')'
+                        } else {
+                            this.#query += `${word.toUpperCase()}(${request[word].toString()})`
+                        }
+                        break
+                    }
+                    case 'as': {
+                        this.#query += ` ${word.toUpperCase()} ${request[word]}`
+                        break
+                    }
+                    case 'field': {
+                        this.#query += request[word]
+                        break
+                    }
+                    case 'condition': {
+                        this.#query += ` ${request[word]} `
+                        break
+                    }
+                    case 'inner': {
+                        if (typeof request[word] == 'object' && request[word] !== null) {
+                            this.#query += '('
+                            this.#parseRequest(request[word])
+                            this.#query += ')'
+                        } else {
+                            this.#query += `(${request[word].toString()})`
+                        }
+                        break
+                    }
+                    case 'prepare': {
+                        this.#query += `$${(this.#position++)}`
+                        this.#data.push(request[word])
+                        break
+                    }
+                    case 'raw': {
+                        this.#query += request[word].toString()
+                        break
+                    }
+                    case 'distinct': {
+                        if (request[word].constructor == Array) {
+                            let q = ''
+                            for (let item of request[word]) {
+                                q += q == '' ? `DISTINCT ${item}` : `, DISTINCT ${item}`
+                            }
+                            this.#query += q
+                        }
+                        if (typeof request[word] == 'string')
+                            this.#query += 'DISTINCT ' + request[word]
+                        break
+                    }
+                    case 'params': {
+                        if (request[word].constructor == Array) {
+                            let first = true
+                            for (let i = 0; i < request[word].length; i++) {
+                                this.#query += first ? '' : ', '
+                                if (typeof request[word][i] === 'object') {
+                                    this.#parseRequest(request[word][i])
+                                } else {
+                                    this.#query += `'${request[word][i].toString()}'`
+                                }
+                                first = false
+                            }
+                        } else if (typeof request[word] == 'object' && request[word] !== null) {
+                            this.#parseRequest(request[word])
+                        } else if (typeof request[word] == 'string') {
+                            this.#query += `'${request[word]}'`
+                        }
+                        break
+                    }
+                    case 'set': {
+                        if (Array.isArray(request[word]) && request[word].length) {
+                            let q = ''
+                            for (let item of request[word]) {
+                                if (Array.isArray(item) && item.length == 2) {
+                                    q += q == '' ? '' : ', '
+                                    q += `${item[0]} = $${(this.#position++)}`
+                                    this.#data.push(item[1])
+                                } else if (typeof item == 'object' && item.hasOwnProperty('field') && item.hasOwnProperty('prepare')) {
+                                    q += q == '' ? '' : ', '
+                                    q += `${item.field} = $${(this.#position++)}`
+                                    this.#data.push(item.prepare)
+                                }
+                            }
+                            this.#query += q
+                        }
+                        break
+                    }
+                    case 'valuesRaw':
+                    case 'values': {
+                        let raw = word.replace(/[A-Z]/g, ' $&').split(' ').length == 2
+                        this.#query += ' VALUES ('
                         let q = ''
-                        for(let item of request[word]){
-                            if(Array.isArray(item)&&item.length==2){
-                                q+=q==''?'':', '
-                                q+=`${item[0]} = $${(this.#position++)}`
-                                this.#data.push(item[1])
-                            }else if(typeof item == 'object'&&item.hasOwnProperty('field')&&item.hasOwnProperty('prepare')){
-                                q+=q==''?'':', '
-                                q+=`${item.field} = $${(this.#position++)}`
-                                this.#data.push(item.prepare)
+                        request[word] = !Array.isArray(request[word]) ? [request[word]] : request[word]
+                        if (request[word].length) {
+                            for (let item of request[word]) {
+                                q += q == '' ? '' : ', '
+                                if (raw) {
+                                    if (typeof item === 'string')
+                                        q += `'${item}'`
+                                    else
+                                        q += item.toString()
+                                } else {
+                                    q += `$${(this.#position++)}`
+                                    this.#data.push(item)
+                                }
                             }
                         }
-                        this.#query+=q
+                        this.#query += q
+                        this.#query += ')'
+                        break
                     }
-                    break
-                }
-                case 'valuesRaw':
-                case 'values':{
-                    let raw = word.replace(/[A-Z]/g,' $&').split(' ').length==2
-                    this.#query+=' VALUES ('
-                    let q=''
-                    request[word] = !Array.isArray(request[word])?[request[word]]:request[word]
-                    if(request[word].length){
-                        for(let item of request[word]){
-                            q+=q==''?'':', '
-                            if(raw){
-                                if(typeof item === 'string')
-                                    q+=`'${item}'`
-                                else
-                                    q+=item.toString()
-                            }else{
-                                q+=`$${(this.#position++)}`
-                                this.#data.push(item)
-                            }
-                        }
-                    }
-                    this.#query+=q
-                    this.#query+=')'
-                    break
                 }
             }
+        } catch (err) {
+            Logger.error('Model.parseRequest()', err)
         }
     }
 
@@ -572,48 +575,52 @@ export default class Model {
      * @param {string|null} asName.global
      */
     #parseParams(params=null,prepare = false,wrapper = false,stringQuotes=false,asName={one:null, global:null}){
-        if(params != null){
-            if(Array.isArray(params)){
-                if(prepare){
-                    this.#query+=`$${this.#position++}`
-                    this.#data.push(params)
-                }else{
-                    if(wrapper)
-                    this.#query+=`(`
-                    for(let i=0;i<params.length; i++){
-                        this.#parseParams(params[i],prepare,true,stringQuotes,asName)
-                        if(i+1!=params.length)
-                            this.#query+=', '
+        try {
+            if (params != null) {
+                if (Array.isArray(params)) {
+                    if (prepare) {
+                        this.#query += `$${this.#position++}`
+                        this.#data.push(params)
+                    } else {
+                        if (wrapper)
+                            this.#query += `(`
+                        for (let i = 0; i < params.length; i++) {
+                            this.#parseParams(params[i], prepare, true, stringQuotes, asName)
+                            if (i + 1 != params.length)
+                                this.#query += ', '
+                        }
+                        if (wrapper)
+                            this.#query += ')'
+                        if (wrapper && asName.global != null)
+                            this.#query += ` AS ${asName.global}`
                     }
-                    if(wrapper)
-                        this.#query+=')'
-                    if(wrapper && asName.global!=null)
-                        this.#query+=` AS ${asName.global}`
-                }
-                
-            }else if(typeof params == 'function'&&params.prototype instanceof Model){
-                this.#query+=params.table+(asName.one!=null?` AS ${asName.one}`:'')
-            }else if(typeof params == 'function'){
-                this.#query+=`#`
-                params(this)
-                if(/#(SELECT|INSERT|DELETE|UPDATE)/.test(this.#query)){
-                    this.#query=this.#query.replace('#','(')
-                    this.#query+=')'
-                }else{
-                    this.#query=this.#query.replace('#','')
-                }
-            }else{
-                if(prepare){
-                    this.#query+=`$${this.#position++}`
-                    this.#data.push(params)
-                }else{
-                    if(stringQuotes && typeof params == 'string')
-                        this.#query+=`'${params}'`
-                    else
-                        this.#query+= params.toString()
-                    this.#query+=(asName.one!=null?` AS ${asName.one}`:'')
+
+                } else if (typeof params == 'function' && params.prototype instanceof Model) {
+                    this.#query += params.table + (asName.one != null ? ` AS ${asName.one}` : '')
+                } else if (typeof params == 'function') {
+                    this.#query += `#`
+                    params(this)
+                    if (/#(SELECT|INSERT|DELETE|UPDATE)/.test(this.#query)) {
+                        this.#query = this.#query.replace('#', '(')
+                        this.#query += ')'
+                    } else {
+                        this.#query = this.#query.replace('#', '')
+                    }
+                } else {
+                    if (prepare) {
+                        this.#query += `$${this.#position++}`
+                        this.#data.push(params)
+                    } else {
+                        if (stringQuotes && typeof params == 'string')
+                            this.#query += `'${params}'`
+                        else
+                            this.#query += params.toString()
+                        this.#query += (asName.one != null ? ` AS ${asName.one}` : '')
+                    }
                 }
             }
+        } catch (err) {
+            Logger.error('Model.parseParams()', err)
         }
     }
 
@@ -629,11 +636,11 @@ export default class Model {
      */
     static select(params = null, table = null) {
         let tb=null
-        if(table!==null&&typeof table=='function'&&table.prototype instanceof Model)
+        if(table!==null && typeof table=='function' && table.prototype instanceof Model)
             tb = table.table
         else if(typeof table=='string')
             tb = table
-        tb=tb==null?this.table:tb
+        tb=tb==null ? this.table : tb
         let obj = new this()
         obj.#query = 'SELECT '
         if(params!=null){
@@ -642,7 +649,7 @@ export default class Model {
         }else{
             obj.#query += `* FROM ${tb}`
         }
-        return obj;
+        return obj
     }
 
     /**
@@ -667,7 +674,7 @@ export default class Model {
     }
 
     #countable(type = 'count',params = null, distinct = false){
-        let d = distinct ? 'DISTINCT ' : '';
+        let d = distinct ? 'DISTINCT ' : ''
         if (params != null) {
             this.#query += `${d}${type.toUpperCase()}(`
             this.#parseParams(params)
@@ -704,8 +711,7 @@ export default class Model {
      * @param {*} distinct 
      */
     max(params = null, distinct = false) {
-        this.#countable('max',params,distinct)
-        return this
+        return this.#countable('max',params,distinct)
     }
 
     /**
@@ -728,32 +734,44 @@ export default class Model {
 
 
     #conditional(before='where',field,condition,param){
-        let prepare=!/^[\s]*@/.test(field)
-        field = field.replace(/@/,'')
-        this.#query+=` ${before.toUpperCase()} ${field} ${condition} `
-        this.#parseParams(param,prepare)
+        try{
+            let prepare = !/^[\s]*@/.test(field)
+            field = field.replace(/@/, '')
+            this.#query += ` ${before.toUpperCase()} ${field} ${condition} `
+            this.#parseParams(param, prepare)
+        }catch(err){
+            Logger.error('Model.conditional()',err)
+        }
         return this
     }
     #baseIn(before='',field, params,not=false){
-        let prepare=!/^[\s]*@/.test(field)
-        field = field.replace(/@/,'')
-        this.#query+=` ${before.toUpperCase()} ${field}${not?' NOT':''} IN `
-        this.#parseParams(params,prepare,true)
+        try{
+            let prepare = !/^[\s]*@/.test(field)
+            field = field.replace(/@/, '')
+            this.#query += ` ${before.toUpperCase()} ${field}${not ? ' NOT' : ''} IN `
+            this.#parseParams(params, prepare, true)
+        }catch(err){
+            Logger.error('Model.baseIn()', err)
+        }
         return this
     }
     #baseIs(before='',exp='',field){
-        if(typeof field == 'function'){
-            this.#query+=` ${before.toUpperCase()} `
-            field(this)
-            this.#query+=` IS ${exp.toLocaleUpperCase()}`
-        }else{
-            this.#query+=` ${before.toUpperCase()} ${field} IS ${exp.toLocaleUpperCase()}`
+        try{
+            if(typeof field == 'function'){
+                this.#query+=` ${before.toUpperCase()} `
+                field(this)
+                this.#query+=` IS ${exp.toLocaleUpperCase()}`
+            }else{
+                this.#query+=` ${before.toUpperCase()} ${field} IS ${exp.toLocaleUpperCase()}`
+            }
+        }catch(err){
+            Logger.error('Model.baseIs()',err)
         }
         return this
     }
     #baseBetween(before='',field,params,symmetric=false,not=false){
         try{
-            let prepare=false;
+            let prepare=false
             if(typeof field == 'function'){
                 this.#query+=` ${before.toUpperCase()} `
                 field(this)
@@ -771,13 +789,13 @@ export default class Model {
                 throw new Error('Params in between function must be type of array, and length=2')
             }
         }catch(err){
-            Logger.error('Model.#baseBetween',err)
+            Logger.error('Model.baseBetween()',err)
         }
         return this
     }
     #baseLike(before='',field,params,not=false){
         try{
-            let prepare=false;
+            let prepare=false
             if(typeof field == 'function'){
                 this.#query+=` ${before.toUpperCase()} `
                 field(this)
@@ -789,7 +807,7 @@ export default class Model {
             }
             this.#parseParams(params,prepare,false,true)
         }catch(err){
-            Logger.error('Model.#baseLike',err)
+            Logger.error('Model.baseLike()',err)
         }
         return this
     }
@@ -950,14 +968,22 @@ export default class Model {
     }
 
     groupBy(field) {
-        this.#query += ' GROUP BY '
-        this.#parseParams(field)
+        try{
+            this.#query += ' GROUP BY '
+            this.#parseParams(field)
+        }catch(err){
+            Logger.error('Model.groupBy()',err)
+        }
         return this
     }
 
     having(field,condition,params){
-        this.#query+=` HAVING ${field} ${condition} `
-        this.#parseParams(params)
+        try{
+            this.#query+=` HAVING ${field} ${condition} `
+            this.#parseParams(params)
+        }catch(err){
+            Logger.error('Model.having()',err)
+        }
         return this
     }
 
@@ -982,9 +1008,6 @@ export default class Model {
     }
   
 
-    
-
-
     /**
      * 
      * @param {*} tb 
@@ -995,16 +1018,11 @@ export default class Model {
     join(tb, fieldCondition, fieldCondition2) {
         this.#lastQuery = ''
         let current=this.constructor['table']
-        this.#query += ` JOIN ${tb} ON ${current}.${fieldCondition}=${fieldCondition2}`;
-        return this;
+        this.#query += ` JOIN ${tb} ON ${current}.${fieldCondition}=${fieldCondition2}`
+        return this
     }
 
     
-
-   
-
-    
-
     /**
      * Асинхронная функция добавления новой записи на основе текущего объекта модели
      * @returns {Promise<object>}
@@ -1013,36 +1031,41 @@ export default class Model {
      */
     save() {
         return new Promise((resolve, reject) => {
-            let names = [], values = [], data = []
-            let position = 1
-            for (let prop of Object.keys(this)) {
-                if (this[prop] != null) {
-                    if (this[prop].toString().toLowerCase() === 'current_timestamp') {
-                        this[prop]=new Date()
+            try{
+                let names = [], values = [], data = []
+                let position = 1
+                for (let prop of Object.keys(this)) {
+                    if (this[prop] != null) {
+                        if (this[prop].toString().toLowerCase() === 'current_timestamp') {
+                            this[prop] = new Date()
+                        }
+                        let bname = prop.replace(/([A-Z])/g, '_$1').toLowerCase()
+                        names.push(bname)
+                        values.push(`$${position}`)
+                        position++
+                        data.push(this[prop])
                     }
-                    let bname = prop.replace(/([A-Z])/g, '_$1').toLowerCase()
-                    names.push(bname)
-                    values.push(`$${position}`)
-                    position++
-                    data.push(this[prop])
                 }
-            }
-            let strQuery = `INSERT INTO ${this.constructor['table']} (${names.toString()}) VALUES (${values.toString()}) RETURNING ${this.constructor['primary']}`
-            let connect = new Connect()
-            connect.con().then(connect => {
-                connect.query(strQuery, data, result => {
-                    connect.client.end()
-                    if (!result){
-                        resolve({success:false})
-                    } else {
-                        this[this.constructor['primary']]=result.rows[0][this.constructor['primary']]
-                        resolve({success:true, insertId:result.rows[0][this.constructor['primary']]})
-                    }
+                let strQuery = `INSERT INTO ${this.constructor['table']} (${names.toString()}) VALUES (${values.toString()}) RETURNING ${this.constructor['primary']}`
+                let connect = new Connect()
+                connect.con().then(connect => {
+                    connect.query(strQuery, data, result => {
+                        connect.client.end()
+                        if (!result) {
+                            resolve({ success: false })
+                        } else {
+                            this[this.constructor['primary']] = result.rows[0][this.constructor['primary']]
+                            resolve({ success: true, insertId: result.rows[0][this.constructor['primary']] })
+                        }
+                    })
+                }).catch(err => {
+                    Logger.error('Model.save()', err)
+                    resolve({ success: false })
                 })
-            }).catch(err=>{
-                Logger.error('Model.save()',err)
-                resolve({success:false})
-            });
+            }catch(err){
+                Logger.error('Model.save()', err)
+                resolve({ success: false })
+            }
         })
     }
 
@@ -1098,50 +1121,50 @@ export default class Model {
      */
     update(isNull = false) {
         return new Promise((resolve, reject) => {
-            let position = 1
-            let names = [], values = [], conditions = ''
-            for (let prop of Object.keys(this)) {
-                let bname = prop.replace(/([A-Z])/g, '_$1').toLowerCase()
+            try{
+                let position = 1
+                let names = [], values = [], conditions = ''
+                for (let prop of Object.keys(this)) {
+                    let bname = prop.replace(/([A-Z])/g, '_$1').toLowerCase()
 
-                if (this.constructor['primary'] != null && this.constructor['primary'] == bname) {
-                    conditions = ` WHERE ${bname}=$${position++}`
-                    values.push(this[prop])
-                }
-                if(typeof this[prop] === 'undefined'){
-                    this[prop]=null
-                }
-                if (!isNull && this[prop] === null) {
-                    continue
-                } else {
-                    if (bname != this.constructor['primary'] && this[prop] === null) {
-                        names.push(`${bname}=NULL`);
-                    } else if(bname != this.constructor['primary']){
-                        if (this[prop]!=null&&this[prop].toString().toLowerCase() === 'current_timestamp') {
-                            this[prop]=new Date()
-                        }
-                        names.push(`${bname}=$${position++}`)
+                    if (this.constructor['primary'] != null && this.constructor['primary'] == bname) {
+                        conditions = ` WHERE ${bname}=$${position++}`
                         values.push(this[prop])
                     }
+                    if (typeof this[prop] === 'undefined') {
+                        this[prop] = null
+                    }
+                    if (!isNull && this[prop] === null) {
+                        continue
+                    } else {
+                        if (bname != this.constructor['primary'] && this[prop] === null) {
+                            names.push(`${bname}=NULL`)
+                        } else if (bname != this.constructor['primary']) {
+                            if (this[prop] != null && this[prop].toString().toLowerCase() === 'current_timestamp') {
+                                this[prop] = new Date()
+                            }
+                            names.push(`${bname}=$${position++}`)
+                            values.push(this[prop])
+                        }
+                    }
                 }
-            }
-            let connect = new Connect()
-            this.#query=`UPDATE ${this.constructor['table']} SET ${names.toString() + conditions}`
-            try{
+                let connect = new Connect()
+                this.#query = `UPDATE ${this.constructor['table']} SET ${names.toString() + conditions}`
                 connect.con().then(connect => {
                     connect.query(this.#query, values, result => {
                         connect.client.end()
-                        if (!result) resolve({success:false})
-                        else resolve({success:true})
+                        if (!result) resolve({ success: false })
+                        else resolve({ success: true })
                     })
-                }).catch(err=>{
-                    Logger.error('(object) Model.update()',err)
-                    resolve({success:false})
-                });
+                }).catch(err => {
+                    Logger.error('Model.update()', err)
+                    resolve({ success: false })
+                })
             }catch(err){
-                Logger.error('(object) Model.update()',err)
+                Logger.error('Model.update()',err)
                 resolve({success:false})
             }
-        });
+        })
     }
 
     /**
@@ -1152,8 +1175,8 @@ export default class Model {
      */
     send() {
         return new Promise((resolve, reject) => {
-            let connect = new Connect()
             try{
+                let connect = new Connect()
                 connect.con().then(connect => {
                     connect.query(this.#query, this.#data, result => {
                         if (!result) {
@@ -1178,7 +1201,7 @@ export default class Model {
                         }
                     })
                 }).catch((err)=>{
-                    Logger.error('Connect.con()',err)
+                    Logger.error('Model.send()',err)
                     resolve({success:false})
                 })
             }catch(err){
@@ -1190,35 +1213,43 @@ export default class Model {
 
     /**
      * Асинхронная функция выполнения запроса
-     * @returns {Promise<object>}
+     * @returns {Promise<object|undefined>}
      * ---
      * Возвращает только одну запись
      */
     async first(){
-        let res = await this.send()
-        if(res.success&&res.data){
-            let data = Array.isArray(res.data)?res.data[0]:res.data!=null?res.data:null
-            res.data=data
-            return res
-        }else{
-            return res
+        try{
+            let res = await this.send()
+            if (res?.success && res?.data) {
+                let data = Array.isArray(res.data) ? res.data[0] : res.data != null ? res.data : null
+                res.data = data
+                return res
+            } else {
+                return res
+            }
+        }catch(err){
+            Logger.error('Model.first()', err)
         }
     }
 
     /**
      * Асинхронная функция выполнения запроса.
-     * @returns {Promise<object>} 
+     * @returns {Promise<object|undefined>} 
      * ---
      * Возвращает записи в виде массива(даже если присутствует только одна запись)
      */
     async many(){
-        let res = await this.send()
-        if(res.success&&res.data){
-            let data = Array.isArray(res.data)?res.data:res.data!=null?[res.data]:null
-            res.data=data
-            return res
-        }else{
-            return res
+        try{
+            let res = await this.send()
+            if (res?.success && res?.data) {
+                let data = Array.isArray(res.data) ? res.data : res.data != null ? [res.data] : null
+                res.data = data
+                return res
+            } else {
+                return res
+            }
+        }catch(err){
+            Logger.error('Model.many()',err)
         }
     }
 
@@ -1227,7 +1258,7 @@ export default class Model {
      * @returns {string}
      */
     query(){
-        return this.#query;
+        return this.#query
     }
 
     /**
@@ -1236,7 +1267,12 @@ export default class Model {
      * Строка запроса 
     */
     setQuery(query) {
-        this.#query = query;
+        if(typeof query === 'string'){
+            this.#query = query
+            return true
+        }else{
+            return false
+        }
     }
 
     /**
@@ -1244,7 +1280,7 @@ export default class Model {
      * @returns {string[]}
      */
     queryPool(){
-        return Model.#queryPool;
+        return Model.#queryPool
     }
 
     /**
@@ -1254,6 +1290,7 @@ export default class Model {
         Model.#queryPool.push(this.#query)
         Model.#poolData=Model.#poolData.concat(this.#data)
     }
+
     /**
      * Статическая функция для выполнения транзакции
      * @returns {Promise<object>}
@@ -1262,7 +1299,7 @@ export default class Model {
         return new Promise((resolve, reject) => {
             try {
                 if (Model.#queryPool.length) {
-                    let position = 1;
+                    let position = 1
                     let transaction = 'BEGIN;'
                     transaction += Model.#queryPool.join(';')
                     transaction = transaction.replace(/\$[0-9]+/g, () => `$${position++}`)
@@ -1302,7 +1339,7 @@ export default class Model {
         return new Promise((resolve, reject) => {
             try {
                 if (Model.#queryPool.length) {
-                    let position = 1;
+                    let position = 1
                     let transaction = 'BEGIN;'
                     transaction += Model.#queryPool.join(';')
                     transaction = transaction.replace(/\$[0-9]+/g, () => `$${position++}`)
@@ -1351,9 +1388,9 @@ export default class Model {
      */
     delete(){
         return new Promise((resolve, reject) => {
-            let connect = new Connect()
-            this.#query=`DELETE FROM ${this.constructor['table']} WHERE ${this.constructor['primary']} = ${this[this.constructor['primary']]}`
             try{
+                let connect = new Connect()
+                this.#query=`DELETE FROM ${this.constructor['table']} WHERE ${this.constructor['primary']} = ${this[this.constructor['primary']]}`
                 connect.con().then(connect => {
                     connect.query(this.#query,null, result => {
                         connect.client.end()
@@ -1364,14 +1401,14 @@ export default class Model {
                         else resolve({success:true})
                     })
                 }).catch(err=>{
-                    Logger.error('(object) Model.delete()',err)
+                    Logger.error('Model.delete()',err)
                     resolve({success:false})
                 })
             }catch(err){
-                Logger.error('(object) Model.delete()',err)
+                Logger.error('Model.delete()',err)
                 resolve({success:false})
             }
-        });
+        })
     }
 
     /**
@@ -1383,23 +1420,27 @@ export default class Model {
      * @returns {null|object|object[]}
      */
     static parse(objs,join=false) {
-        let objects = [];
-        if(objs==null||objs.length==0) return null;
-        for (let item of objs) {
-            let obj;
-            obj = new this();
-            for (let key in item) {
-                let newName = NamingCase.toNaming(key,Model.namingType)
-                for (let name in obj) {
-                    if (name == newName||join) {
-                        obj[newName] = item[key];
+        let objects = []
+        try{
+            if(objs==null||objs.length==0) return null
+            for (let item of objs) {
+                let obj
+                obj = new this()
+                for (let key in item) {
+                    let newName = NamingCase.toNaming(key,Model.namingType)
+                    for (let name in obj) {
+                        if (name == newName||join) {
+                            obj[newName] = item[key]
+                        }
                     }
                 }
+                if (objs.length == 1) return obj
+                else objects.push(obj)
             }
-            if (objs.length == 1) return obj;
-            else objects.push(obj);
+        }catch(err){
+            Logger.error('Model.parse()',err)
         }
-        return objects;
+        return objects
     }
 
     /**
@@ -1408,8 +1449,8 @@ export default class Model {
      * @returns {object[]}
      */
     static asArray(obj) {
-        if(!Array.isArray(obj)) return [obj];
-        return obj; 
+        if(!Array.isArray(obj)) return [obj]
+        return obj
     }
     
     /**
@@ -1420,7 +1461,7 @@ export default class Model {
     */
     mergeToThis(mergeObj){
         for(let name in this){
-            if(mergeObj&&mergeObj.hasOwnProperty(name)){
+            if(mergeObj && mergeObj.hasOwnProperty(name)){
                 if(this[name]==null) this[name]=mergeObj[name]
                 delete mergeObj[name]
             }
@@ -1428,7 +1469,7 @@ export default class Model {
         for(let name in mergeObj){
             this[name]=mergeObj[name]
         }
-        return this;
+        return this
     }
 
 }
@@ -1461,11 +1502,11 @@ class Connect {
             this.client.connect(err => {
                 if (err) {
                     Logger.error(`Connect.con(): Ошибка подключения к базе данных`,err)
-                    reject();
+                    reject()
                 } else {
-                    resolve(this);
+                    resolve(this)
                 }
-            });
+            })
         })
     }
 

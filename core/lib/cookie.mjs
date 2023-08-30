@@ -4,10 +4,9 @@ import * as crypto from 'crypto'
 import Logger from './logger.mjs'
 
 export default class Cookie {
-    static #request
-    static #response
-    static #cookieData = new Map()
-    static isInit = false
+    #request
+    #response
+    #cookieData = new Map()
     static #CONFIG
 
     static async setConfig(pathToConfig){
@@ -25,10 +24,9 @@ export default class Cookie {
      * @param {any} res 
      * Объект HTTP ответа
      */
-    static init(req, res) {
+    constructor(req, res){
         this.#request = req
         this.#response = res
-        this.isInit = true
     }
 
     /**
@@ -44,10 +42,8 @@ export default class Cookie {
      * @param {boolean} signed 
      * @returns 
      */
-    static set(name, value, expires = null, domain = null, path = null, secure = false, httpOnly = false, sameSite = null, signed = false) {
+    set(name, value, expires = null, domain = null, path = null, secure = false, httpOnly = false, sameSite = null, signed = false) {
         try{
-            if(!this.isInit)
-                throw new Error('Cookie модуль не инициализирован')
             if (signed) {
                 let key = crypto.createHmac('sha256', Cookie.#CONFIG.COOKIE_PASS).update(name).digest('hex')
                 name += '.' + key
@@ -72,7 +68,7 @@ export default class Cookie {
             this.#response.setHeader('Set-Cookie', data)
             return true
         }catch(err){
-            Logger.error('Cookie', err)
+            Logger.error('Cookie.set()', err)
             return false
         }
     }
@@ -83,18 +79,16 @@ export default class Cookie {
      * Наименование поля
      * @returns 
      */
-    static isset(name) {
+    isset(name) {
         try{
-            if(!this.isInit)
-                throw new Error('Cookie модуль не инициализирован')
-            let cookies = this.#request.headers['cookie'];
+            let cookies = this.#request.headers['cookie']
             if (cookies != undefined) {
-                let reg = new RegExp(`${name}="([\\w\\W]+)"`, 'g');
-                return reg.test(cookies);
+                let reg = new RegExp(`${name}="([\\w\\W]+)"`, 'g')
+                return reg.test(cookies)
             }
             return false
         }catch(err){
-            Logger.error('Cookie', err)
+            Logger.error('Cookie.isset()', err)
             return false
         }
     }
@@ -102,34 +96,27 @@ export default class Cookie {
     /**
      * Функция получения значения из куки
      * @param {string} name 
-     * @returns {object|string|null} Возвращает объект либо строку из cookie если они есть, если нет то null
+     * @returns {object|string|undefined} Возвращает объект либо строку из cookie если они есть, если нет то null
      */
-    static get(name) {
+    get(name) {
         try{
-            if(!this.isInit)
-                throw new Error('Cookie модуль не инициализирован')
-            let cookies = this.#request.headers['cookie'];
+            let cookies = this.#request.headers['cookie']
             if (cookies != undefined) {
-                let reg = new RegExp(`${name}="([\\w\\%\\[\\]\\{\\}\\#\\.\\,\\?\\$\\-\\+\\_\\'\\@]+)"`, 'g');
-                let res = cookies.match(reg);
+                let reg = new RegExp(`${name}="([\\w\\%\\[\\]\\{\\}\\#\\.\\,\\?\\$\\-\\+\\_\\'\\@]+)"`, 'g')
+                let res = cookies.match(reg)
                 if (res != null) {
-                    reg = new RegExp(/"([\w\s\W\S]+)"/);
-                    let obj = res[0].match(reg);
-                    obj = decodeURIComponent(obj[1]);
+                    reg = new RegExp(/"([\w\s\W\S]+)"/)
+                    let obj = res[0].match(reg)
+                    obj = decodeURIComponent(obj[1])
                     if (/\[[\w\s\W\S]+\]/.test(obj) || /\{[\w\s\W\S]+\}/.test(obj)) {
-                        return JSON.parse(obj);
+                        return JSON.parse(obj)
                     } else {
-                        return obj;
+                        return obj
                     }
-                } else {
-                    return null;
                 }
-            } else {
-                return null;
             }
         }catch(err){
-            Logger.error('Cookie', err)
-            return false
+            Logger.error('Cookie.get()', err)
         }
     }
 
@@ -140,10 +127,8 @@ export default class Cookie {
      * @returns {boolean}
      * Если параметр был удален возвращает true, иначе false
      */
-    static delete(name) {
+    delete(name) {
         try{
-            if(!this.isInit)
-                throw new Error('Cookie модуль не инициализирован')
             let time = new Date(0).toUTCString()
             let cookie = `${name}=delete; Expires=${time}`
             this.#cookieData.set(name, cookie)
@@ -151,7 +136,7 @@ export default class Cookie {
             this.#response.setHeader('Set-Cookie', data)
             return true
         }catch(err){
-            Logger.error('Cookie', err)
+            Logger.error('Cookie.delete()', err)
             return false
         }
     }

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" class="standart_page">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>402 - Payment Required</title>
+	<style>
+		.standart_page{
+			font-family: "Consolas"
+		}
+		.standart_page *,::after,::before{
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+		.standart_page{
+			height: 100%;
+			overflow: hidden;
+		}
+		.standart_body{
+			display:flex;
+			justify-content: center;
+			align-items: center;
+		}
+		.standart_page_container>h1{
+			font-weight: bold;
+			font-size: 4.5rem;
+			color: #fff;
+			text-align:center;
+		}
+		.standart_page_header{
+			height:100%;
+			width:100%;
+			display:flex;
+			flex-direction:column;
+			justify-content: center;
+			align-items: center;
+			background: linear-gradient(135deg,#225caa,#223c8a,#823c3a,#a23c5a,#ff413a,#bea815,#227a44,#115a33,#223c5a,#225caa,#223c8a);
+			animation: header 25s infinite ease-in-out;
+			background-size: 2200% 2200%;
+		}
+		.standart_page_container{
+			max-width: 50%;
+		}
+		.standart_page_container>p{
+			color:white;
+			font-weight: bold;
+			font-size: 1.5rem;
+			text-align:center;
+		}
+		.standart_page_delimiter{
+			width: 100%;
+			border:none;
+			height:2px;
+			margin:0.5rem 0;
+			background-color: #fff;
+		}
+		@keyframes header{
+			from {
+				background-position: 0% 0%;
+			}
+			to {
+				background-position: 94% 94%;
+			}
+		}
+
+		@media(max-width:1023px) and (max-height:1023px){
+			:root{
+				font-size:4vmin;
+			}
+			.standart_page_container{
+				max-width:80%;
+			}
+			.standart_page_container>h1{
+				font-size:3.5rem;
+			}
+		}
+	</style>
+</head>
+<body class="standart_page standart_body">
+	<header class="standart_page_header">
+		<div class="standart_page_container">
+			<h1>Page 402</h1>
+			<hr class="standart_page_delimiter">
+			<p>You need to pay to access the resource!</p>
+		</div>
+	</header>
+</body>
+</html>

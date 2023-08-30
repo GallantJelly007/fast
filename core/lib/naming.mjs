@@ -75,16 +75,16 @@ export default class NamingCase{
                 switch(toType){
                     case 'CAMEL_CASE':
                         name = newName.map((elem, index) => {
-                            let str = elem;
-                            if (index != 0) str = str.replace(/^[\w]/, (m) => m.toUpperCase());
-                            return str;
-                        }).join('');
+                            let str = elem
+                            if (index != 0) str = str.replace(/^[\w]/, (m) => m.toUpperCase())
+                            return str
+                        }).join('')
                         break
                     case 'PASCAL_CASE':
                         name = newName.map((elem) => {
-                            let str = elem;
-                            str = str.replace(/^[\w]/, (m) => m.toUpperCase());
-                            return str;
+                            let str = elem
+                            str = str.replace(/^[\w]/, (m) => m.toUpperCase())
+                            return str
                         }).join('')
                         break
                     case 'KEBAB_CASE':
